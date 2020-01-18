@@ -1,11 +1,11 @@
 [submodule "external/bx"]
-	path = external/bx
+	path = external/bgfx/bx
 	url = https://github.com/bkaradzic/bx.git
 [submodule "external/bgfx"]
-	path = external/bgfx
+	path = external/bgfx/bgfx
 	url = https://github.com/bkaradzic/bgfx.git
 [submodule "external/bimg"]
-	path = external/bimg
+	path = external/bgfx/bimg
 	url = https://github.com/bkaradzic/bimg.git
 [submodule "external/glfw"]
 	path = external/glfw
@@ -16,3 +16,9 @@
 [submodule "external/loguru"]
 	path = external/loguru
 	url = https://github.com/emilk/loguru.git
+[submodule "external/eastl/EASTL"]
+	path = external/eastl/EASTL
+	url = https://github.com/electronicarts/EASTL.git
+[submodule "external/eastl/EABase"]
+	path = external/eastl/EABase
+	url = https://github.com/electronicarts/EABase.git
