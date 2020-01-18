@@ -12,8 +12,6 @@
 
 #include <loguru.hpp>
 
-#include "logo.h"
-
 static bool s_ShowStats   = false;
 static bool s_EnableVSync = false;
 static int  s_MsaaLevel   = 0;
