@@ -22,3 +22,6 @@
 [submodule "external/eastl/EABase"]
 	path = external/eastl/EABase
 	url = https://github.com/electronicarts/EABase.git
+[submodule "external/EABase"]
+	path = external/eastl/EABase
+	url = https://github.com/electronicarts/EABase.git

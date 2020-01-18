@@ -7,6 +7,9 @@ add_subdirectory(glfw)
 # BGFX
 add_subdirectory(bgfx)
 
+# EASTL
+add_subdirectory(eastl)
+
 # Loguru
 add_library(loguru STATIC ${CMAKE_CURRENT_SOURCE_DIR}/loguru/loguru.cpp)
 target_include_directories(loguru PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/loguru)

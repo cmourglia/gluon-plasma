@@ -5,4 +5,4 @@ project(GluonPlasma)
 add_subdirectory(external)
 
 add_executable(gluon src/main.cpp)
-target_link_libraries(gluon PUBLIC bgfx glfw loguru)
+target_link_libraries(gluon PUBLIC bgfx glfw loguru eastl)
