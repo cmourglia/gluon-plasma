@@ -12,6 +12,9 @@
 
 #include <loguru.hpp>
 
+#include <glm/glm.hpp>
+#include <eastl/array.h>
+
 #include <rapidjson/document.h>
 #include <rapidjson/writer.h>
 #include <rapidjson/stringbuffer.h>
@@ -24,6 +27,33 @@ static uint32_t s_WindowWidth  = 1024;
 static uint32_t s_WindowHeight = 768;
 
 const bgfx::ViewId kRenderView = 0;
+
+struct pos_color_vertex
+{
+	glm::vec2 Position;
+	glm::vec4 Color;
+
+	static void Init()
+	{
+		ms_Layout.begin()
+		    .add(bgfx::Attrib::Position, 2, bgfx::AttribType::Float)
+		    .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Float)
+		    .end();
+	}
+
+	static bgfx::VertexLayout ms_Layout;
+};
+
+bgfx::VertexLayout pos_color_vertex::ms_Layout = bgfx::VertexLayout();
+
+constexpr eastl::array<pos_color_vertex, 4> s_QuadVertices = {
+    pos_color_vertex{glm::vec2{-1.0f, -1.0f}, glm::vec4{1.0f, 0.0f, 0.0f, 1.0f}},
+    pos_color_vertex{glm::vec2{-1.0f, -1.0f}, glm::vec4{1.0f, 0.0f, 0.0f, 1.0f}},
+    pos_color_vertex{glm::vec2{-1.0f, -1.0f}, glm::vec4{1.0f, 0.0f, 0.0f, 1.0f}},
+    pos_color_vertex{glm::vec2{-1.0f, -1.0f}, glm::vec4{1.0f, 0.0f, 0.0f, 1.0f}},
+};
+
+constexpr eastl::array<uint16_t, 6> s_QuadIndices = {0, 1, 2, 0, 2, 3};
 
 uint32_t GetResetFlags()
 {
@@ -142,20 +172,36 @@ int main()
 	bgfx::setViewClear(kRenderView, BGFX_CLEAR_COLOR);
 	bgfx::setViewRect(kRenderView, 0, 0, bgfx::BackbufferRatio::Equal);
 
+	pos_color_vertex::Init();
+	uint32_t VertexBufferSize = (uint32_t)s_QuadVertices.size() * sizeof(pos_color_vertex);
+	uint32_t IndexBufferSize  = (uint32_t)s_QuadIndices.size() * sizeof(pos_color_vertex);
+	auto VertexBufferHandle = bgfx::createVertexBuffer(bgfx::makeRef(s_QuadVertices.data(), VertexBufferSize), pos_color_vertex::ms_Layout);
+	auto IndexBufferHandle  = bgfx::createIndexBuffer(bgfx::makeRef(s_QuadIndices.data(), IndexBufferSize));
+
 	while (!glfwWindowShouldClose(Window))
 	{
 		glfwPollEvents();
 
 		bgfx::touch(kRenderView);
 
+		bgfx::setVertexBuffer(0, VertexBufferHandle);
+		bgfx::setIndexBuffer(IndexBufferHandle);
+		bgfx::setState(BGFX_STATE_DEFAULT);
+		// bgfx::submit(0, ProgramHandle);
+
+		// Debug
 		bgfx::dbgTextClear();
 		bgfx::dbgTextPrintf(0, 0, 0x0f, "Press F1 to toggle stats, F2 to toggle vsync, F3 to walk through MSAA settings");
-
 		// Enable stats or debug text.
 		bgfx::setDebug(s_ShowStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
+
 		// Advance to next frame. Process submitted rendering primitives.
 		bgfx::frame();
 	}
+
+	bgfx::destroy(VertexBufferHandle);
+	bgfx::destroy(IndexBufferHandle);
+	bgfx::shutdown();
 
 	return 0;
 }
