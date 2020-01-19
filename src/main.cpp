@@ -12,6 +12,10 @@
 
 #include <loguru.hpp>
 
+#include <rapidjson/document.h>
+#include <rapidjson/writer.h>
+#include <rapidjson/stringbuffer.h>
+
 static bool s_ShowStats   = false;
 static bool s_EnableVSync = false;
 static int  s_MsaaLevel   = 0;
