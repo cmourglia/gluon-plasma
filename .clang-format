@@ -32,6 +32,8 @@ SpacesInAngles: 'false'
 SpacesInCStyleCastParentheses: 'false'
 SpacesInParentheses: 'false'
 SpacesInSquareBrackets: 'false'
+SpaceBeforeCpp11BracedList: 'false'
+Cpp11BracedListStyle: 'true'
 Standard: Cpp11
 TabWidth: '4'
 UseTab: ForIndentation
