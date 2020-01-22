@@ -66,7 +66,7 @@ macro(COMPILE_SHADER SHADER)
                     -o ${SHADER_DIR}/bin/${BIN_SHADER_NAME}
                     --platform ${PLATFORM}
                     --type ${SHADER_TYPE}
-                    --verbose
+                    # --verbose
                     --profile ${PROFILE}
                     -i ${CMAKE_SOURCE_DIR}/external/bgfx/bgfx/src
                     ${OPTIMIZATION}
