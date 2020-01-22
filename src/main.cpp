@@ -24,12 +24,12 @@
 
 #include <optick.h>
 
-static bool s_ShowStats   = false;
-static bool s_EnableVSync = false;
-static int  s_MsaaLevel   = 0;
+static bool gShowStats   = false;
+static bool gEnableVSync = false;
+static int  gMsaaLevel   = 0;
 
-static uint32_t s_WindowWidth  = 1024;
-static uint32_t s_WindowHeight = 768;
+static uint32_t gWindowWidth  = 1024;
+static uint32_t gWindowHeight = 768;
 
 const bgfx::ViewId kRenderView = 0;
 
@@ -41,43 +41,46 @@ struct pos_texcoord_vertex
 
 	static void Init()
 	{
-		ms_Layout.begin()
+		sLayout.begin()
 		    .add(bgfx::Attrib::Position, 2, bgfx::AttribType::Float)
 		    // .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
 		    // .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Float)
 		    .end();
 	}
 
-	static bgfx::VertexLayout ms_Layout;
+	static bgfx::VertexLayout sLayout;
 };
 
-bgfx::VertexLayout pos_texcoord_vertex::ms_Layout = bgfx::VertexLayout();
+bgfx::VertexLayout pos_texcoord_vertex::sLayout = bgfx::VertexLayout();
 
-constexpr eastl::array<pos_texcoord_vertex, 4> s_QuadVertices = {
+constexpr eastl::array<pos_texcoord_vertex, 4> kQuadVertices = {
     pos_texcoord_vertex{glm::vec2{0.0f, 0.0f} /*, glm::vec2{1.0f, 0.0f}*/},
     pos_texcoord_vertex{glm::vec2{0.0f, 1.0f} /*, glm::vec2{0.0f, 1.0f}*/},
     pos_texcoord_vertex{glm::vec2{1.0f, 1.0f} /*, glm::vec2{1.0f, 1.0f}*/},
     pos_texcoord_vertex{glm::vec2{1.0f, 0.0f} /*, glm::vec2{1.0f, 0.0f}*/},
 };
 
-constexpr eastl::array<uint16_t, 6> s_QuadIndices = {0, 2, 1, 0, 3, 2};
+constexpr eastl::array<uint16_t, 6> kQuadIndices = {0, 2, 1, 0, 3, 2};
 
-static bgfx::VertexBufferHandle s_VertexBufferHandle = BGFX_INVALID_HANDLE;
-static bgfx::IndexBufferHandle  s_IndexBufferHandle  = BGFX_INVALID_HANDLE;
+static bgfx::VertexBufferHandle gVertexBufferHandle = BGFX_INVALID_HANDLE;
+static bgfx::IndexBufferHandle  gIndexBufferHandle  = BGFX_INVALID_HANDLE;
 
-static bgfx::UniformHandle s_ColorUniform = BGFX_INVALID_HANDLE;
+static bgfx::UniformHandle gColorUniform = BGFX_INVALID_HANDLE;
+static bgfx::UniformHandle gBoxUniform   = BGFX_INVALID_HANDLE;
+static bgfx::UniformHandle gSigmaUniform = BGFX_INVALID_HANDLE;
 
-void DrawRectangle(bgfx::ProgramHandle Program, float X, float Y, float Width, float Height, const glm::vec4& Color)
+using color = glm::vec4;
+
+void DrawRectangle(bgfx::ProgramHandle Program, float X, float Y, float Width, float Height, color Color, bool bWithShadow = false)
 {
-	if (!bgfx::isValid(s_VertexBufferHandle))
+	if (!bgfx::isValid(gVertexBufferHandle))
 	{
 		pos_texcoord_vertex::Init();
-		uint32_t VertexBufferSize = (uint32_t)s_QuadVertices.size() * sizeof(pos_texcoord_vertex);
-		uint32_t IndexBufferSize  = (uint32_t)s_QuadIndices.size() * sizeof(uint16_t);
+		uint32_t VertexBufferSize = (uint32_t)kQuadVertices.size() * sizeof(pos_texcoord_vertex);
+		uint32_t IndexBufferSize  = (uint32_t)kQuadIndices.size() * sizeof(uint16_t);
 
-		s_VertexBufferHandle = bgfx::createVertexBuffer(bgfx::makeRef(s_QuadVertices.data(), VertexBufferSize),
-		                                                pos_texcoord_vertex::ms_Layout);
-		s_IndexBufferHandle  = bgfx::createIndexBuffer(bgfx::makeRef(s_QuadIndices.data(), IndexBufferSize));
+		gVertexBufferHandle = bgfx::createVertexBuffer(bgfx::makeRef(kQuadVertices.data(), VertexBufferSize), pos_texcoord_vertex::sLayout);
+		gIndexBufferHandle  = bgfx::createIndexBuffer(bgfx::makeRef(kQuadIndices.data(), IndexBufferSize));
 	}
 
 	glm::mat4 Transform = glm::mat4(1.0f);
@@ -85,22 +88,27 @@ void DrawRectangle(bgfx::ProgramHandle Program, float X, float Y, float Width, f
 	Transform           = glm::scale(Transform, glm::vec3(Width, Height, 1.0f));
 	bgfx::setTransform(glm ::value_ptr(Transform));
 
-	bgfx::setVertexBuffer(0, s_VertexBufferHandle);
-	bgfx::setIndexBuffer(s_IndexBufferHandle);
+	bgfx::setVertexBuffer(0, gVertexBufferHandle);
+	bgfx::setIndexBuffer(gIndexBufferHandle);
 
-	bgfx::setUniform(s_ColorUniform, glm::value_ptr(Color));
+	float Sigma = 10.0f;
 
-	bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_CULL_CW | BGFX_STATE_MSAA);
+	bgfx::setUniform(gColorUniform, glm::value_ptr(Color));
+	bgfx::setUniform(gBoxUniform, glm::value_ptr(glm::vec4(X, Y, X + Width, Y + Height)));
+	bgfx::setUniform(gSigmaUniform, glm::value_ptr(glm::vec4(Sigma)));
+
+	bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z | BGFX_STATE_MSAA | BGFX_STATE_DEPTH_TEST_ALWAYS |
+	               BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_INV_SRC_ALPHA));
 	bgfx::submit(0, Program);
 }
 
 uint32_t GetResetFlags()
 {
 	uint32_t Flags = BGFX_RESET_NONE;
-	if (s_EnableVSync)
+	if (gEnableVSync)
 		Flags |= BGFX_RESET_VSYNC;
 
-	switch (s_MsaaLevel)
+	switch (gMsaaLevel)
 	{
 		case 1:
 			Flags |= BGFX_RESET_MSAA_X2;
@@ -121,7 +129,7 @@ uint32_t GetResetFlags()
 
 static void ResizeWindow()
 {
-	bgfx::reset(s_WindowWidth, s_WindowHeight, GetResetFlags());
+	bgfx::reset(gWindowWidth, gWindowHeight, GetResetFlags());
 	bgfx::setViewRect(kRenderView, 0, 0, bgfx::BackbufferRatio::Equal);
 }
 
@@ -134,18 +142,18 @@ static void KeyCallback(GLFWwindow* Window, int Key, int Scancode, int Action, i
 {
 	if (Key == GLFW_KEY_F1 && Action == GLFW_RELEASE)
 	{
-		s_ShowStats = !s_ShowStats;
+		gShowStats = !gShowStats;
 	}
 
 	if (Key == GLFW_KEY_F2 && Action == GLFW_RELEASE)
 	{
-		s_EnableVSync = !s_EnableVSync;
+		gEnableVSync = !gEnableVSync;
 		ResizeWindow();
 	}
 
 	if (Key == GLFW_KEY_F3 && Action == GLFW_RELEASE)
 	{
-		s_MsaaLevel = ++s_MsaaLevel % 5;
+		gMsaaLevel = ++gMsaaLevel % 5;
 		ResizeWindow();
 	}
 
@@ -157,8 +165,8 @@ static void KeyCallback(GLFWwindow* Window, int Key, int Scancode, int Action, i
 
 static void ResizeCallback(GLFWwindow* Window, int Width, int Height)
 {
-	s_WindowWidth  = Width;
-	s_WindowHeight = Height;
+	gWindowWidth  = Width;
+	gWindowHeight = Height;
 
 	ResizeWindow();
 }
@@ -205,7 +213,7 @@ int main()
 	}
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	GLFWwindow* Window = glfwCreateWindow(s_WindowWidth, s_WindowHeight, "Hello BGFX", nullptr, nullptr);
+	GLFWwindow* Window = glfwCreateWindow(gWindowWidth, gWindowHeight, "Hello BGFX", nullptr, nullptr);
 
 	if (!Window)
 	{
@@ -231,23 +239,25 @@ int main()
 
 	int Width, Height;
 	glfwGetWindowSize(Window, &Width, &Height);
-	Init.resolution.width = s_WindowWidth = Width;
-	Init.resolution.height = s_WindowHeight = Height;
-	Init.resolution.reset                   = BGFX_RESET_NONE; // BGFX_RESET_VSYNC to enable vsync
+	Init.resolution.width = gWindowWidth = Width;
+	Init.resolution.height = gWindowHeight = Height;
+	Init.resolution.reset                  = BGFX_RESET_NONE; // BGFX_RESET_VSYNC to enable vsync
 
 	if (!bgfx::init(Init))
 	{
 		return 1;
 	}
 
-	bgfx::setViewClear(kRenderView, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH);
+	bgfx::setViewClear(kRenderView, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0xdededeff);
 	bgfx::setViewRect(kRenderView, 0, 0, bgfx::BackbufferRatio::Equal);
 
 	auto VertexShaderHandle   = LoadShader("shaders/bin/test.vert.bin");
 	auto FragmentShaderHandle = LoadShader("shaders/bin/test.frag.bin");
 	auto ProgramHandle        = bgfx::createProgram(VertexShaderHandle, FragmentShaderHandle, true);
 
-	s_ColorUniform = bgfx::createUniform("u_color", bgfx::UniformType::Vec4);
+	gColorUniform = bgfx::createUniform("u_color", bgfx::UniformType::Vec4);
+	gBoxUniform   = bgfx::createUniform("u_box", bgfx::UniformType::Vec4);
+	gSigmaUniform = bgfx::createUniform("u_sigma", bgfx::UniformType::Vec4);
 
 	while (!glfwWindowShouldClose(Window))
 	{
@@ -257,36 +267,38 @@ int main()
 
 		bgfx::touch(kRenderView);
 
-		// const auto ProjMatrix = glm::orthoLH_ZO(-(float)s_WindowWidth / 2.0f,
-		//                                         (float)s_WindowWidth / 2.0f,
-		//                                         -(float)s_WindowHeight / 2.0f,
-		//                                         (float)s_WindowHeight / 2.0f,
+		// const auto ProjMatrix = glm::orthoLH_ZO(-(float)gWindowWidth / 2.0f,
+		//                                         (float)gWindowWidth / 2.0f,
+		//                                         -(float)gWindowHeight / 2.0f,
+		//                                         (float)gWindowHeight / 2.0f,
 		//                                         0.0f,
 		//                                         100.0f);
 		// const auto ViewMatrix = glm::rotate(glm::mat4(1.0f), 3.14f, glm::vec3(1.0f, 0.0f, 0.0f));
 		const auto ViewMatrix = glm::mat4(1.0f);
-		const auto ProjMatrix = glm::orthoLH_ZO(0.0f, (float)s_WindowWidth, 0.0f, (float)s_WindowHeight, 0.0f, 100.0f);
+		const auto ProjMatrix = glm::orthoLH_ZO(0.0f, (float)gWindowWidth, (float)gWindowHeight, 0.0f, 0.0f, 100.0f);
+		// const auto ProjMatrix = glm::orthoLH_ZO(0.0f, (float)gWindowWidth, 0.0f, (float)gWindowHeight, 0.0f, 100.0f);
 		bgfx::setViewTransform(0, glm::value_ptr(ViewMatrix), glm::value_ptr(ProjMatrix));
 
-		DrawRectangle(ProgramHandle, 50, 50, 50, 50, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
-		DrawRectangle(ProgramHandle, 200, 50, 50, 50, glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
-		DrawRectangle(ProgramHandle, 50, 200, 50, 50, glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
+		// DrawRectangle(ProgramHandle, 0, 0, gWindowWidth, gWindowHeight, glm::vec4(0.25f, 0.25f, 0.25f, 1.0f));
+		// DrawRectangle(ProgramHandle, 50, 50, 50, 50, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+		// DrawRectangle(ProgramHandle, 200, 50, 50, 50, glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
+		// DrawRectangle(ProgramHandle, 50, 200, 50, 50, glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
 		DrawRectangle(ProgramHandle, 200, 200, 50, 50, glm::vec4(1.0f, 1.0f, 0.0f, 1.0f));
 
 		// Debug
 		bgfx::dbgTextClear();
 		bgfx::dbgTextPrintf(0, 0, 0x0f, "Press F1 to toggle stats, F2 to toggle vsync, F3 to walk through MSAA settings");
 		// Enable stats or debug text.
-		bgfx::setDebug(s_ShowStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
+		bgfx::setDebug(gShowStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
 
 		// Advance to next frame. Process submitted rendering primitives.
 		bgfx::frame();
 	}
 
-	bgfx::destroy(s_ColorUniform);
+	bgfx::destroy(gColorUniform);
 	bgfx::destroy(ProgramHandle);
-	bgfx::destroy(s_VertexBufferHandle);
-	bgfx::destroy(s_IndexBufferHandle);
+	bgfx::destroy(gVertexBufferHandle);
+	bgfx::destroy(gIndexBufferHandle);
 	bgfx::shutdown();
 
 	OPTICK_SHUTDOWN();
