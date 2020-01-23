@@ -10,3 +10,16 @@ build:
 clone_folder: c:\projects\gluon-plasma
 
 image: Visual Studio 2019
+
+before_build:
+  # Setup MSVC Environment
+  - call "%MSVC_SETUP_PATH%" %MSVC_SETUP_ARG%
+  - cd %APPVEYOR_BUILD_FOLDER%
+
+build_script:
+  # CMake
+  - cmake -G Ninja
+    "-DCMAKE_BUILD_TYPE=Release"
+    %APPVEYOR_BUILD_FOLDER%
+  # Build
+  - ninja
