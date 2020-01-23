@@ -142,6 +142,7 @@ static bgfx::ShaderHandle LoadShader(const char* ShaderName)
 	char* Data = (char*)malloc(Size + 1);
 	if (!Data)
 	{
+		fclose(File);
 		return BGFX_INVALID_HANDLE;
 	}
 
@@ -153,6 +154,7 @@ static bgfx::ShaderHandle LoadShader(const char* ShaderName)
 	bgfx::setName(Handle, ShaderName);
 
 	free(Data);
+	fclose(File);
 
 	return Handle;
 }
