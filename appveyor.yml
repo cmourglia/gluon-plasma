@@ -7,6 +7,14 @@ clone_folder: c:\projects\gluon-plasma
 
 image: Visual Studio 2019
 
+matrix:
+    ###########################################################################
+    # Build x64 version using MSVC 2017
+    ###########################################################################
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
+      MSVC_SETUP_PATH: C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat
+      MSVC_SETUP_ARG: x64
+
 install:
   - cd %APPVEYOR_BUILD_FOLDER%
   - git submodule update --init
@@ -23,3 +31,7 @@ build_script:
     %APPVEYOR_BUILD_FOLDER%
   # Build
   - ninja
+
+on_failure:
+  - appveyor PushArtifact CMakeFiles/CMakeOutput.log
+  - appveyor PushArtifact CMakeFiles/CMakeError.log
