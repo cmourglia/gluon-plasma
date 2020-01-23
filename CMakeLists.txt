@@ -83,5 +83,6 @@ foreach(SHADER ${IN_SHADERS})
 endforeach()
 
 add_executable(gluon src/main.cpp ${OUT_SHADERS})
-target_link_libraries(gluon PUBLIC bgfx glfw loguru eastl)
+target_link_libraries(gluon PUBLIC bgfx glfw loguru eastl optick)
 target_include_directories(gluon PUBLIC external/rapidjson/include external/glm)
+target_compile_definitions(gluon PUBLIC USE_OPTICK)

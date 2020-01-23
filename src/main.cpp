@@ -22,6 +22,8 @@
 #include <rapidjson/writer.h>
 #include <rapidjson/stringbuffer.h>
 
+#include <optick.h>
+
 static bool s_ShowStats   = false;
 static bool s_EnableVSync = false;
 static int  s_MsaaLevel   = 0;
@@ -217,6 +219,8 @@ int main()
 
 	while (!glfwWindowShouldClose(Window))
 	{
+		OPTICK_FRAME("MainThread");
+
 		glfwPollEvents();
 
 		bgfx::touch(kRenderView);
@@ -246,6 +250,8 @@ int main()
 	bgfx::destroy(VertexBufferHandle);
 	bgfx::destroy(IndexBufferHandle);
 	bgfx::shutdown();
+
+	OPTICK_SHUTDOWN();
 
 	return 0;
 }
