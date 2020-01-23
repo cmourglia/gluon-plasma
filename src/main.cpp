@@ -73,6 +73,8 @@ using color = glm::vec4;
 
 void DrawRectangle(bgfx::ProgramHandle Program, float X, float Y, float Width, float Height, color Color, bool bWithShadow = false)
 {
+	OPTICK_EVENT();
+
 	if (!bgfx::isValid(gVertexBufferHandle))
 	{
 		pos_texcoord_vertex::Init();
@@ -239,9 +241,18 @@ int main()
 
 	int Width, Height;
 	glfwGetWindowSize(Window, &Width, &Height);
-	Init.resolution.width = gWindowWidth = Width;
-	Init.resolution.height = gWindowHeight = Height;
-	Init.resolution.reset                  = BGFX_RESET_NONE; // BGFX_RESET_VSYNC to enable vsync
+	gWindowWidth  = Width;
+	gWindowHeight = Height;
+
+	Init.resolution.width  = gWindowWidth;
+	Init.resolution.height = gWindowHeight;
+	Init.resolution.reset  = BGFX_RESET_NONE; // BGFX_RESET_VSYNC to enable vsync
+
+#if BX_PLATFORM_WINDOWS
+	Init.type = bgfx::RendererType::Direct3D12;
+#else
+	Init.type             = bgfx::RendererType::OpenGL;
+#endif
 
 	if (!bgfx::init(Init))
 	{
