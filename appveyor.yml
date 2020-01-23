@@ -7,7 +7,8 @@ clone_folder: c:\projects\gluon-plasma
 
 image: Visual Studio 2019
 
-matrix:
+environment:
+  matrix:
     ###########################################################################
     # Build x64 version using MSVC 2017
     ###########################################################################
