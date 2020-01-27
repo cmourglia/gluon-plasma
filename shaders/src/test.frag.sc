@@ -1,70 +1,96 @@
-$input v_position, v_texcoord
-
 #include <bgfx_shader.sh>
+#include <bgfx_compute.sh>
 
-uniform vec4 u_color;
+#include "uniforms.sh"
 
-const vec4 Box = vec4(200, 250, 250, 200);
-
-vec4 Error(vec4 x) {
-	vec4 s = sign(x), a = abs(x);
-	x = 1.0 + (0.278393 + (0.230389 + 0.078108 * (a * a)) * a) * a;
-	x *= x;
-	return s - s / (x * x);
-}
-
-// Return the mask for the shadow of a box from Lower to Upper
-float BoxShadow(vec2 Lower, vec2 Upper, vec2 Point, float Sigma) {
-	vec4 query = vec4(Point - Lower, Upper - Point);
-	vec4 integral = 0.5 + 0.5 * Error(query * (sqrt(0.5) / Sigma));
-	return (integral.z - integral.x) * (integral.w - integral.y);
-}
-
-float GetDistance(vec2 Lower, vec2 Upper, vec2 Point)
+struct circle_t
 {
-	vec2 Center = (Lower + Upper) * 0.5;
-	float x = Center.x, y = Center.y;
-	float px = Point.x, py = Point.y;
-	float w = Upper.x - Lower.x;
-	float h = Upper.y - Lower.y;
+	vec3 FillColor;
+	vec3 BorderColor;
+	float Radius;
+	vec2 Position;
+};
 
-	float dx = max(abs(px - x) - w * 0.5, 0);
-	float dy = max(abs(py - y) - h * 0.5, 0);
+BUFFER_RO(CirclePositions, vec4, 0);
+BUFFER_RO(CircleFillColorRadius, vec4, 1);
+BUFFER_RO(CircleBorderColorSize, vec4, 2);
 
-	return dx * dx + dy * dy;
+float sdLine(in vec2 p, in vec2 a, in vec2 b)
+{
+	vec2  pa = p - a, ba = b - a;
+	float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+	return length(pa - ba * h);
 }
 
-float GetAlpha(float d, float s)
+vec3 Line(in vec3 buf, in vec2 a, in vec2 b, in vec2 p, in vec2 w, in vec4 col)
 {
-	return (s - d) / s;
+	float f = sdLine(p, a, b);
+	float g = fwidth(f) * w.y;
+	return mix(buf, col.xyz, col.w * (1.0 - smoothstep(w.x - g, w.x + g, f)));
+}
+
+vec4 DrawCircle(vec3 InColor, circle_t Circle, vec2 Position)
+{
+	float Distance = length(Position - Circle.Position);
+	vec3 OutColor = InColor;
+	OutColor = mix(OutColor, Circle.FillColor, step(Distance, Circle.Radius));
+	// OutColor = Distance;
+	// OutColor = mix(OutColor, Circle.BorderColor, 1.0 - smoothstep(0.01, 0.002, abs(Distance - Circle.Radius)));
+	return vec4(OutColor, 1 - Distance);
+}
+
+vec2 ToScreenSpace(vec2 Coords, vec2 ScreenSize)
+{
+	return (2.0 * Coords - ScreenSize) / min(ScreenSize.x, ScreenSize.y);
 }
 
 void main()
 {
-	// float Alpha = BoxShadow(vec2(200, 250), vec2(250, 200), vec2(gl_FragCoord.x, gl_FragCoord.y), 10);
-	float Distance = GetDistance(vec2(200, 200), vec2(250, 250), vec2(gl_FragCoord.x, gl_FragCoord.y));
+	// circle_t Circles[4];
+	// Circles[0].Position = vec2(-0.5, -0.5);
+	// Circles[0].Radius = 0.75;
+	// Circles[0].InnerColor = vec3(118, 110, 200) / 255;
 
-	if (Distance > 0)
-	{
-		float Alpha = GetAlpha(Distance, 100);
-		gl_FragColor = vec4(0.2, 0.2, 0.2, 1) * Alpha;
-	}
-	else
-	{
-		gl_FragColor = vec4(1, 1, 1, 1);
-	}
+	// Circles[1].Position = vec2(0.5, -0.5);
+	// Circles[1].Radius = 0.75;
+	// Circles[1].InnerColor = vec3(255, 53, 94) / 255;
 
-	// else if (gl_FragCoord.x > Box.z)
+	// Circles[2].Position = vec2(0.5, 0.5);
+	// Circles[2].Radius = 0.75;
+	// Circles[2].InnerColor = vec3(50, 105, 74) / 255;
+
+	// Circles[3].Position = vec2(-0.5, 0.5);
+	// Circles[3].Radius = 0.75;
+	// Circles[3].InnerColor = vec3(138, 243, 163) / 255;
+
+	vec2 uv = ToScreenSpace(gl_FragCoord.xy, uScreenSize);
+
+	float p = length(uv);
+	float r = 0.75;
+
+	// background
+	// vec3 col = vec3(0.5, 0.6, 0.7) + 0.2 * uv.y;
+	vec4 col = 0.0;
+
+	// for (int i = 0; i < ElementCount; ++i)
 	// {
-	// 	gl_FragColor = vec4(1, 0, 1, 1);
+		circle_t Circle;
+		Circle.Position = ToScreenSpace(uPosition, uScreenSize);
+		Circle.Radius = uSize.x / uScreenSize.y;
+		Circle.FillColor = uColor;
+		Circle.BorderColor = 0.0;
+
+		col = DrawCircle(col, Circle, uv);
 	// }
-	// // vec4  = gl_FragCoord.xy;
-	// if (length(dir) > 0) {
-	// 	gl_FragColor = vec4(0, 0, 0, 1);
-	// } else {
-	// 	gl_FragColor = vec4(1, 0, 0, 1);
-	// }
-	// gl_FragColor = vec4(length(dir), 0, 0, 1);
-	// float d = length(gl_FragCoord.xy - v_position);
-	// gl_FragColor = u_color;
+
+	// col = DrawCircle(col, Circles[0], uv);
+	// col = DrawCircle(col, Circles[1], uv);
+	// col = DrawCircle(col, Circles[2], uv);
+	// col = DrawCircle(col, Circles[3], uv);
+
+	// gl_FragColor = h;
+	// gl_FragColor = vec4(col, 1.0);
+	// gl_FragColor = col;
+	gl_FragColor = vec4(uColor.rgb, 1.0);
+	gl_FragColor = vec4(1, 0, 0, 1);
 }
