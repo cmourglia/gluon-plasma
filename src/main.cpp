@@ -1,16 +1,7 @@
-#include <bx/bx.h>
-#include <bgfx/bgfx.h>
-#include <bgfx/platform.h>
-
-#include <glfw/glfw3.h>
-#if BX_PLATFORM_LINUX
-#	define GLFW_EXPOSE_NATIVE_X11
-#elif BX_PLATFORM_WINDOWS
-#	define GLFW_EXPOSE_NATIVE_WIN32
-#endif
-#include <glfw/glfw3native.h>
-
 #include <loguru.hpp>
+
+#include <glad/glad.h>
+#include <glfw/glfw3.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -18,6 +9,9 @@
 
 #include <eastl/array.h>
 #include <eastl/vector.h>
+#include <eastl/algorithm.h>
+#include <eastl/numeric.h>
+#include <eastl/numeric_limits.h>
 
 #include <rapidjson/document.h>
 #include <rapidjson/writer.h>
@@ -25,227 +19,47 @@
 
 #include <optick.h>
 
+#include "timer.cpp"
+
+#include "renderer.h"
+
 static bool gShowStats   = false;
 static bool gEnableVSync = false;
 static int  gMsaaLevel   = 0;
 
-static uint32_t gWindowWidth  = 1024;
-static uint32_t gWindowHeight = 768;
-
-const bgfx::ViewId kRenderView = 0;
-
-struct pos_texcoord_vertex
-{
-	glm::vec2 Position;
-	// glm::vec2 Coords;
-	// glm::vec4 Color;
-
-	static void Init()
-	{
-		sLayout.begin()
-		    .add(bgfx::Attrib::Position, 2, bgfx::AttribType::Float)
-		    // .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
-		    // .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Float)
-		    .end();
-	}
-
-	static bgfx::VertexLayout sLayout;
-};
-
-bgfx::VertexLayout pos_texcoord_vertex::sLayout = bgfx::VertexLayout();
-
-constexpr eastl::array<pos_texcoord_vertex, 4> kQuadVertices = {
-    pos_texcoord_vertex{glm::vec2{-1.0f, -1.0f} /*, glm::vec2{1.0f, 0.0f}*/},
-    pos_texcoord_vertex{glm::vec2{-1.0f, 1.0f} /*, glm::vec2{0.0f, 1.0f}*/},
-    pos_texcoord_vertex{glm::vec2{1.0f, 1.0f} /*, glm::vec2{1.0f, 1.0f}*/},
-    pos_texcoord_vertex{glm::vec2{1.0f, -1.0f} /*, glm::vec2{1.0f, 0.0f}*/},
-};
-
-constexpr eastl::array<uint16_t, 6> kQuadIndices = {0, 2, 1, 0, 3, 2};
-
-static bgfx::VertexBufferHandle gVertexBufferHandle = BGFX_INVALID_HANDLE;
-static bgfx::IndexBufferHandle  gIndexBufferHandle  = BGFX_INVALID_HANDLE;
-
-static bgfx::InstanceDataBuffer gInstanceDataBuffer;
-
-static bgfx::UniformHandle             ParamsHandle          = BGFX_INVALID_HANDLE;
-static bgfx::DynamicVertexBufferHandle PositionBuffer        = BGFX_INVALID_HANDLE;
-static bgfx::DynamicVertexBufferHandle FillColorRadiusBuffer = BGFX_INVALID_HANDLE;
-static bgfx::DynamicVertexBufferHandle BorderColorSizeBuffer = BGFX_INVALID_HANDLE;
-static bgfx::IndirectBufferHandle      IndirectBufferHandle  = BGFX_INVALID_HANDLE;
+static uint32_t g_WindowWidth  = 1024;
+static uint32_t g_WindowHeight = 768;
 
 using color = glm::vec4;
 
-struct rectangle
-{
-	glm::vec2 Position;
-	glm::vec2 Size;
-	color     FillColor;
-	color     BorderColor;
-	float     BorderSize;
-};
+// static bgfx::InstanceDataBuffer gInstanceDataBuffer;
 
-struct rendering_context
-{
-	eastl::vector<glm::vec4> Positions;
-	eastl::vector<glm::vec4> FillColorRadii;
-	eastl::vector<glm::vec4> BorderColorSize;
-
-	eastl::vector<rectangle> Rectangles;
-
-	bgfx::ProgramHandle Program;
-};
-
-void DrawRectangle(rendering_context* Context,
-                   float              X,
-                   float              Y,
-                   float              Width,
-                   float              Height,
-                   color              Color,
-                   color              BorderColor = color(0.0f, 0.0f, 0.0f, 1.0f))
-{
-	OPTICK_EVENT();
-
-	rectangle Rectangle;
-	Rectangle.Position    = glm::vec2(X, Y);
-	Rectangle.Size        = glm::vec2(Width, Height);
-	Rectangle.BorderColor = BorderColor;
-	Rectangle.FillColor   = Color;
-
-	Context->Rectangles.push_back(Rectangle);
-	Context->Positions.push_back(glm::vec4(X, Y, Width, Height));
-}
-
-template <typename data_t>
-inline void UpdateBuffer(bgfx::DynamicVertexBufferHandle Handle, const eastl::vector<data_t>& Data)
-{
-	bgfx::update(Handle, 0, bgfx::copy(Data.data(), (uint32_t)Data.size() * sizeof(data_t)));
-}
-
-void Flush(rendering_context* Context)
-{
-	if (!bgfx::isValid(gVertexBufferHandle))
-	{
-		pos_texcoord_vertex::Init();
-		uint32_t VertexBufferSize = (uint32_t)kQuadVertices.size() * sizeof(pos_texcoord_vertex);
-		uint32_t IndexBufferSize  = (uint32_t)kQuadIndices.size() * sizeof(uint16_t);
-
-		gVertexBufferHandle = bgfx::createVertexBuffer(bgfx::makeRef(kQuadVertices.data(), VertexBufferSize), pos_texcoord_vertex::sLayout);
-		gIndexBufferHandle  = bgfx::createIndexBuffer(bgfx::makeRef(kQuadIndices.data(), IndexBufferSize));
-	}
-
-	bgfx::getAvailInstanceDataBuffer(Context->Rectangles.size(), 16);
-	bgfx::allocInstanceDataBuffer(&gInstanceDataBuffer, Context->Rectangles.size(), 16);
-
-	memcpy(gInstanceDataBuffer.data, Context->Positions.data(), gInstanceDataBuffer.size);
-
-	bgfx::setVertexBuffer(0, gVertexBufferHandle);
-	bgfx::setIndexBuffer(gIndexBufferHandle);
-	bgfx::setInstanceDataBuffer(&gInstanceDataBuffer);
-
-	// bgfx::setBuffer(0, PositionBuffer, bgfx::Access::Read);
-	// UpdateBuffer(PositionBuffer, Context->Positions);
-	// bgfx::setInstanceDataBuffer(PositionBuffer, 0, Context->Rectangles.size());
-
-	// for (auto Rectangle : Context->Rectangles)
-	// {
-	// 	bgfx::setVertexBuffer(0, gVertexBufferHandle);
-	// 	bgfx::setIndexBuffer(gIndexBufferHandle);
-
-	// 	glm::mat4 Transform = glm::mat4(1.0f);
-	// 	Transform           = glm::translate(Transform, glm::vec3(Rectangle.Position, 0.0f));
-	// 	Transform           = glm::scale(Transform, glm::vec3(Rectangle.Size, 1.0f));
-	// 	bgfx::setTransform(glm ::value_ptr(Transform));
-
-	// 	glm::vec4 Params[2];
-	// 	Params[0] = Rectangle.FillColor;
-	// 	Params[1] = glm::vec4(Rectangle.Position, Rectangle.Size);
-	// 	bgfx::setUniform(ParamsHandle, &Params[0], 2);
-
-	bgfx::setState(BGFX_STATE_WRITE_RGB);
-	// bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z | BGFX_STATE_MSAA | BGFX_STATE_DEPTH_TEST_ALWAYS |
-	//    BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_INV_SRC_ALPHA));
-	bgfx::submit(0, Context->Program);
-	// }
-
-	// glm::vec4 Params[2];
-	// Params[0] = Rectangle.FillColor;
-	// Params[1] = glm::vec4(Rectangle.Position, Rectangle.Size);
-	// bgfx::setUniform(ParamsHandle, &Params[0], 2);
-
-	// bgfx::submit(0, Context->Program, IndirectBufferHandle, 0, Context->Rectangles.size());
-
-	// bgfx::bgfx::setUniform(gColorUniform, glm::value_ptr(Color));
-	// bgfx::setUniform(gBoxUniform, glm::value_ptr(glm::vec4(X, Y, X + Width, Y + Height)));
-	// bgfx::setUniform(gSigmaUniform, glm::value_ptr(glm::vec4(Sigma)));
-
-	// bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z | BGFX_STATE_MSAA | BGFX_STATE_DEPTH_TEST_ALWAYS |
-	//    BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_INV_SRC_ALPHA));
-
-	// bgfx::setBuffer(0, PositionBuffer, bgfx::Access::Read);
-	// bgfx::setBuffer(1, FillColorRadiusBuffer, bgfx::Access::Read);
-	// bgfx::setBuffer(2, BorderColorSizeBuffer, bgfx::Access::Read);
-
-	// UpdateBuffer(PositionBuffer, Context->Positions);
-	// UpdateBuffer(FillColorRadiusBuffer, Context->FillColorRadii);
-	// UpdateBuffer(BorderColorSizeBuffer, Context->BorderColorSize);
-
-	Context->Rectangles.clear();
-	Context->Positions.clear();
-}
-
-uint32_t GetResetFlags()
-{
-	uint32_t Flags = BGFX_RESET_NONE;
-	// if (gEnableVSync)
-	// 	Flags |= BGFX_RESET_VSYNC;
-
-	// switch (gMsaaLevel)
-	// {
-	// 	case 1:
-	// 		Flags |= BGFX_RESET_MSAA_X2;
-	// 		break;
-	// 	case 2:
-	// 		Flags |= BGFX_RESET_MSAA_X4;
-	// 		break;
-	// 	case 3:
-	// 		Flags |= BGFX_RESET_MSAA_X8;
-	// 		break;
-	// 	case 4:
-	// 		Flags |= BGFX_RESET_MSAA_X16;
-	// 		break;
-	// }
-
-	return Flags;
-}
-
-static void ResizeWindow()
-{
-	bgfx::reset(gWindowWidth, gWindowHeight, GetResetFlags());
-}
+// static bgfx::UniformHandle             ParamsHandle          = GLUON_INVALID_HANDLE;
+// static bgfx::DynamicVertexBufferHandle PositionBuffer        = GLUON_INVALID_HANDLE;
+// static bgfx::DynamicVertexBufferHandle FillColorRadiusBuffer = GLUON_INVALID_HANDLE;
+// static bgfx::DynamicVertexBufferHandle BorderColorSizeBuffer = GLUON_INVALID_HANDLE;
+// static bgfx::IndirectBufferHandle      IndirectBufferHandle  = GLUON_INVALID_HANDLE;
 
 static void ErrorCallback(int Error, const char* Description)
 {
 	LOG_F(ERROR, "GLFW Error %d: %s\n", Error, Description);
 }
 
-int   gElemCount = 1;
-float gDelta     = 2.0f / gElemCount;
-float gRadius    = gDelta / 2.0f;
+int   g_ElemCount = 1;
+float g_Delta     = 2.0f / g_ElemCount;
+float g_Radius    = g_Delta / 2.0f;
 
-eastl::vector<color> gColors;
+eastl::vector<color> g_Colors;
+
+inline color GetRandomColor()
+{
+	return color((float)rand() / RAND_MAX, (float)rand() / RAND_MAX, (float)rand() / RAND_MAX, 1.0);
+}
 
 void SetColors()
 {
-	auto GetRandomColor = []() {
-		color Color = color((float)rand(), (float)rand(), (float)rand(), 1.0);
-		Color /= (float)RAND_MAX;
-		Color.w = 1.0f;
-		return Color;
-	};
-
-	gColors.resize(gElemCount * gElemCount);
-	for (auto& Color : gColors)
+	g_Colors.resize(g_ElemCount * g_ElemCount);
+	for (auto& Color : g_Colors)
 	{
 		Color = GetRandomColor();
 	}
@@ -261,13 +75,7 @@ static void KeyCallback(GLFWwindow* Window, int Key, int Scancode, int Action, i
 	if (Key == GLFW_KEY_F2 && Action == GLFW_RELEASE)
 	{
 		gEnableVSync = !gEnableVSync;
-		ResizeWindow();
-	}
-
-	if (Key == GLFW_KEY_F3 && Action == GLFW_RELEASE)
-	{
-		gMsaaLevel = ++gMsaaLevel % 5;
-		ResizeWindow();
+		glfwSwapInterval(gEnableVSync ? 1 : 0);
 	}
 
 	if (Key == GLFW_KEY_ESCAPE && Action == GLFW_RELEASE)
@@ -280,36 +88,62 @@ static void CharCallback(GLFWwindow* Window, unsigned int Codepoint)
 {
 	if (Codepoint == '+')
 	{
-		gElemCount *= 2;
-		gElemCount = eastl::min(gElemCount, 512);
+		g_ElemCount *= 2;
+		g_ElemCount = eastl::min(g_ElemCount, 512);
 	}
 
 	if (Codepoint == '-')
 	{
-		gElemCount /= 2;
-		gElemCount = eastl::max(1, gElemCount);
+		g_ElemCount /= 2;
+		g_ElemCount = eastl::max(1, g_ElemCount);
 	}
 
 	SetColors();
 
-	gDelta  = 2.0f / gElemCount;
-	gRadius = gDelta / 2.0f;
+	g_Delta  = 2.0f / g_ElemCount;
+	g_Radius = g_Delta / 2.0f;
 }
 
 static void ResizeCallback(GLFWwindow* Window, int Width, int Height)
 {
-	gWindowWidth  = Width;
-	gWindowHeight = Height;
-
-	ResizeWindow();
+	g_WindowWidth  = Width;
+	g_WindowHeight = Height;
 }
 
-static bgfx::ShaderHandle LoadShader(const char* ShaderName)
+static shader_handle CreateShader(const char* ShaderSource, GLenum ShaderType, const char* ShaderName = nullptr)
 {
-	FILE* File = fopen(ShaderName, "rb");
+	shader_handle Handle = GLUON_INVALID_HANDLE;
+
+	auto Shader = glCreateShader(ShaderType);
+
+	glShaderSource(Shader, 1, &ShaderSource, nullptr);
+	glCompileShader(Shader);
+
+	GLint Compiled;
+	glGetShaderiv(Shader, GL_COMPILE_STATUS, &Compiled);
+
+	if (Compiled != GL_TRUE)
+	{
+		GLchar InfoLog[512];
+		glGetShaderInfoLog(Shader, 512, nullptr, InfoLog);
+		LOG_F(ERROR, "Could not compile Shader %s:\n%s", ShaderName, InfoLog);
+		glDeleteShader(Shader);
+	}
+	else
+	{
+		Handle.Idx = Shader;
+	}
+
+	return Handle;
+}
+
+static shader_handle LoadShader(const char* ShaderName, GLenum ShaderType)
+{
+	FILE* File = fopen(ShaderName, "r");
 	if (!File)
 	{
-		return BGFX_INVALID_HANDLE;
+		LOG_F(ERROR, "Cannot open file %s", ShaderName);
+		return GLUON_INVALID_HANDLE;
 	}
 
 	fseek(File, 0, SEEK_END);
@@ -319,19 +153,74 @@ static bgfx::ShaderHandle LoadShader(const char* ShaderName)
 	char* Data = (char*)malloc(Size + 1);
 	if (!Data)
 	{
+		LOG_F(ERROR, "No more memory available");
 		fclose(File);
-		return BGFX_INVALID_HANDLE;
+		return GLUON_INVALID_HANDLE;
 	}
 
 	Size       = fread(Data, sizeof(char), Size, File);
 	Data[Size] = '\0';
 
-	const bgfx::Memory* Memory = bgfx::copy(Data, (uint32_t)Size + 1);
-	bgfx::ShaderHandle  Handle = bgfx::createShader(Memory);
-	bgfx::setName(Handle, ShaderName);
+	shader_handle Handle = CreateShader(Data, ShaderType, ShaderName);
 
 	free(Data);
 	fclose(File);
+
+	return Handle;
+}
+
+static program_handle CreateProgram(shader_handle VertexShader,
+                                    shader_handle FragmentShader = GLUON_INVALID_HANDLE,
+                                    bool          DeleteShaders  = false)
+{
+	program_handle Handle = GLUON_INVALID_HANDLE;
+
+	uint32_t Program = glCreateProgram();
+
+	if (glIsShader(VertexShader.Idx))
+	{
+		glAttachShader(Program, VertexShader.Idx);
+	}
+
+	if (glIsShader(FragmentShader.Idx))
+	{
+		glAttachShader(Program, FragmentShader.Idx);
+	}
+
+	glLinkProgram(Program);
+
+	if (DeleteShaders)
+	{
+		if (glIsShader(VertexShader.Idx))
+		{
+			glDetachShader(Program, VertexShader.Idx);
+			glDeleteShader(VertexShader.Idx);
+		}
+
+		if (glIsShader(FragmentShader.Idx))
+		{
+			glDetachShader(Program, FragmentShader.Idx);
+			glDeleteShader(FragmentShader.Idx);
+		}
+	}
+
+	GLint Linked;
+
+	glGetProgramiv(Program, GL_LINK_STATUS, &Linked);
+
+	if (Linked != GL_TRUE)
+	{
+		GLchar InfoLog[512];
+		glGetProgramInfoLog(Program, 512, nullptr, InfoLog);
+
+		LOG_F(ERROR, "Error linking program (%s, %s):\n%s", "vert", "frag", InfoLog);
+
+		glDeleteProgram(Program);
+	}
+	else
+	{
+		Handle.Idx = Program;
+	}
 
 	return Handle;
 }
@@ -342,16 +231,41 @@ int main()
 
 	if (!glfwInit())
 	{
-		return 1;
+		LOG_F(FATAL, "Cannot initialize GLFW");
 	}
 
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	GLFWwindow* Window = glfwCreateWindow(gWindowWidth, gWindowHeight, "Hello BGFX", nullptr, nullptr);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_FALSE);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+#ifdef _DEBUG
+	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+#endif
+
+	GLFWwindow* Window = glfwCreateWindow(g_WindowWidth, g_WindowHeight, "GLUON RPZ", nullptr, nullptr);
 
 	if (!Window)
 	{
-		return 1;
+		LOG_F(FATAL, "Cannot create GLFW Window");
 	}
+
+	glfwMakeContextCurrent(Window);
+
+	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+	{
+		LOG_F(FATAL, "Cannot load OpenGL functions");
+	}
+
+#ifdef _DEBUG
+	glEnable(GL_DEBUG_OUTPUT);
+	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+	glDebugMessageCallback(OpenGLMessageCallback, nullptr);
+	glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_FALSE);
+	glDebugMessageControl(GL_DONT_CARE, GL_DEBUG_TYPE_ERROR, GL_DONT_CARE, 0, NULL, GL_TRUE);
+#endif
+
+	LOG_F(INFO, "OpenGL:\n\tVersion %s\n\tVendor %s", glGetString(GL_VERSION), glGetString(GL_VENDOR));
 
 	glfwSetKeyCallback(Window, KeyCallback);
 	glfwSetCharCallback(Window, CharCallback);
@@ -359,60 +273,37 @@ int main()
 
 	// Call bgfx::renderFrame before bgfx::init to signal to bgfx not to create a render thread.
 	// Most graphics APIs must be used on the same thread that created the window.
-	bgfx::renderFrame();
-
-	// Initialize bgfx using the native window handle and window resolution.
-	bgfx::Init Init = {};
-#if BX_PLATFORM_LINUX || BX_PLATFORM_BSD
-	Init.platformData.ndt = glfwGetX11Display();
-	Init.platformData.nwh = (void*)(uintptr_t)glfwGetX11Window(Window);
-#elif BX_PLATFORM_OSX
-	Init.platformData.nwh = glfwGetCocoaWindow(Window);
-#elif BX_PLATFORM_WINDOWS
-	Init.platformData.nwh = glfwGetWin32Window(Window);
-#endif
 
 	int Width, Height;
 	glfwGetWindowSize(Window, &Width, &Height);
-	gWindowWidth  = Width;
-	gWindowHeight = Height;
+	g_WindowWidth  = Width;
+	g_WindowHeight = Height;
 
-	Init.resolution.width  = gWindowWidth;
-	Init.resolution.height = gWindowHeight;
-	Init.resolution.reset  = BGFX_RESET_NONE; // BGFX_RESET_VSYNC to enable vsync
+	glClearColor(0.2f, 0.4f, 0.5f, 1.0f);
 
-#if BX_PLATFORM_WINDOWS
-	Init.type = bgfx::RendererType::Direct3D11;
-#else
-	Init.type             = bgfx::RendererType::OpenGL;
-#endif
+	auto VertexShaderHandle   = LoadShader("shaders/test.vert.glsl", GL_VERTEX_SHADER);
+	auto FragmentShaderHandle = LoadShader("shaders/test.frag.glsl", GL_FRAGMENT_SHADER);
+	auto ProgramHandle        = CreateProgram(VertexShaderHandle, FragmentShaderHandle, true);
 
-	if (!bgfx::init(Init))
-	{
-		return 1;
-	}
+	// ParamsHandle = bgfx::createUniform("Params", bgfx::UniformType::Vec4, 2);
 
-	bgfx::setViewClear(kRenderView, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x000000ff);
-	bgfx::setViewRect(kRenderView, 0, 0, bgfx::BackbufferRatio::Equal);
+	// bgfx::VertexLayout VertexLayout;
+	// VertexLayout.begin().add(bgfx::Attrib::TexCoord0, 4, bgfx::AttribType::Float).end();
 
-	auto VertexShaderHandle   = LoadShader("shaders/bin/test.vert.bin");
-	auto FragmentShaderHandle = LoadShader("shaders/bin/test.frag.bin");
-	auto ProgramHandle        = bgfx::createProgram(VertexShaderHandle, FragmentShaderHandle, true);
-
-	ParamsHandle = bgfx::createUniform("Params", bgfx::UniformType::Vec4, 2);
-
-	bgfx::VertexLayout VertexLayout;
-	VertexLayout.begin().add(bgfx::Attrib::TexCoord0, 4, bgfx::AttribType::Float).end();
-
-	PositionBuffer = bgfx::createDynamicVertexBuffer(1 << 15, VertexLayout, BGFX_BUFFER_COMPUTE_READ);
+	// PositionBuffer = bgfx::createDynamicVertexBuffer(1 << 15, VertexLayout, BGFX_BUFFER_COMPUTE_READ);
 	// FillColorRadiusBuffer = bgfx::createDynamicVertexBuffer(1 << 15, VertexLayout, BGFX_BUFFER_COMPUTE_READ);
 	// BorderColorSizeBuffer = bgfx::createDynamicVertexBuffer(1 << 15, VertexLayout, BGFX_BUFFER_COMPUTE_READ);
-	IndirectBufferHandle = bgfx::createIndirectBuffer(256);
+	// IndirectBufferHandle = bgfx::createIndirectBuffer(256);
 
 	rendering_context Context;
 	Context.Program = ProgramHandle;
 
 	SetColors();
+
+	timer Timer;
+	Timer.Start();
+
+	eastl::vector<double> Times;
 
 	while (!glfwWindowShouldClose(Window))
 	{
@@ -420,73 +311,52 @@ int main()
 
 		glfwPollEvents();
 
-		bgfx::setViewRect(0, 0, 0, (uint16_t)gWindowWidth, (uint16_t)gWindowHeight);
-		bgfx::touch(kRenderView);
+		glViewport(0, 0, g_WindowWidth, g_WindowHeight);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		const auto ViewMatrix = glm::mat4(1.0f);
-		const auto ProjMatrix = glm::orthoLH_ZO(0.0f, (float)gWindowWidth, (float)gWindowHeight, 0.0f, 0.0f, 100.0f);
-		// const auto ProjMatrix = glm::orthoLH_ZO(0.0f, (float)gWindowWidth, 0.0f, (float)gWindowHeight, 0.0f, 100.0f);
-		bgfx::setViewTransform(0, glm::value_ptr(ViewMatrix), glm::value_ptr(ProjMatrix));
+		Context.ViewMatrix = glm::mat4(1.0f);
+		Context.ProjMatrix = glm::orthoLH_ZO(0.0f, (float)g_WindowWidth, (float)g_WindowHeight, 0.0f, 0.0f, 100.0f);
 
-		// for (int i = 0; i < 10; ++i)
-		// {
-		// 	for (int j = 0; j < 10; ++j)
-		// 	{
-		// 		float x = -1.0f +
-		// 		DrawRectangle(&Context,
-		// 		              0.0f,
-		// 		              0.0f,
-		// 		              0.5f,
-		// 		              0.5f,
-		// 		              glm::vec4((float)rand() / RAND_MAX, (float)rand() / RAND_MAX, (float)rand() / RAND_MAX, 1.0f));
-		// 	}
-		// }
+		// DrawRectangle(&Context, g_WindowWidth / 2.f, 50, 100, 100, GetRandomColor());
+		// DrawRectangle(&Context, g_WindowWidth / 2.f, 150, 100, 100, GetRandomColor());
+		// DrawRectangle(&Context, g_WindowWidth / 2.f, 250, 100, 100, GetRandomColor());
+		// DrawRectangle(&Context, g_WindowWidth / 2.f, 350, 100, 100, GetRandomColor());
+		// DrawRectangle(&Context, g_WindowWidth / 2.f, 450, 100, 100, GetRandomColor());
+		// DrawRectangle(&Context, g_WindowWidth / 2.f, 550, 100, 100, GetRandomColor());
+		// DrawRectangle(&Context, g_WindowWidth / 2.f, 650, 100, 100, GetRandomColor());
 
-		for (int i = 0; i < gElemCount; ++i)
+		for (int i = 0; i < g_ElemCount; ++i)
 		{
-			for (int j = 0; j < gElemCount; ++j)
+			for (int j = 0; j < g_ElemCount; ++j)
 			{
-				const float x = -1.0f + gDelta * i + gRadius;
-				const float y = -1.0f + gDelta * j + gRadius;
+				const float x = -1.0f + g_Delta * i + g_Radius;
+				const float y = -1.0f + g_Delta * j + g_Radius;
 
-				const float FinalX      = (x + 1.f) * 0.5f * gWindowWidth;
-				const float FinalY      = (y + 1.f) * 0.5f * gWindowHeight;
-				const float FinalRadius = gRadius * eastl::min(gWindowWidth, gWindowHeight) * 0.5;
+				const float FinalX      = (x + 1.f) * 0.5f * g_WindowWidth;
+				const float FinalY      = (y + 1.f) * 0.5f * g_WindowHeight;
+				const float FinalRadius = g_Radius * eastl::min(g_WindowWidth, g_WindowHeight) * 0.5f;
 
-				DrawRectangle(&Context, FinalX, FinalY, FinalRadius, FinalRadius, gColors[i * gElemCount + j]);
+				DrawRectangle(&Context, FinalX, FinalY, FinalRadius, FinalRadius, g_Colors[i * g_ElemCount + j]);
 			}
 		}
-		// DrawRectangle(&Context, gWindowWidth / 2, gWindowHeight / 2, 100, 100, color(0.25, 0.55, 0.66, 1.0));
-		// DrawRectangle(&Context, -0.5f, -0.5f, 0.5f, 0.5f, GetRandomColor());
-		// DrawRectangle(&Context, -0.5f, 0.5f, 0.5f, 0.5f, GetRandomColor());
-		// DrawRectangle(&Context, 0.5f, -0.5f, 0.5f, 0.5f, GetRandomColor());
-		// DrawRectangle(&Context, 0.5f, 0.5f, 0.5f, 0.5f, GetRandomColor());
 
 		Flush(&Context);
-		// DrawRectangle(ProgramHandle, 0, 0, gWindowWidth, gWindowHeight, glm::vec4(0.25f, 0.25f, 0.25f, 1.0f));
-		// DrawRectangle(ProgramHandle, 50, 50, 50, 50, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
-		// DrawRectangle(ProgramHandle, 200, 50, 50, 50, glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
-		// DrawRectangle(ProgramHandle, 50, 200, 50, 50, glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
-		// DrawRectangle(ProgramHandle, 200, 200, 50, 50, glm::vec4(1.0f, 1.0f, 0.0f, 1.0f));
 
 		// Debug
-		bgfx::dbgTextClear();
-		bgfx::dbgTextPrintf(0, 0, 0x0f, "Press F1 to toggle stats, F2 to toggle vsync, F3 to walk through MSAA settings");
-		// Enable stats or debug text.
-		bgfx::setDebug(gShowStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
+		glfwSwapBuffers(Window);
 
-		// Advance to next frame. Process submitted rendering primitives.
-		bgfx::frame();
+		Times.push_back(Timer.DeltaTime());
+		if (Times.size() == 100)
+		{
+			const double Sum = eastl::accumulate(Times.begin(), Times.end(), 0.0);
+			const double Avg = Sum * 1e-2;
+
+			char Buffer[512];
+			snprintf(Buffer, 512, "GLUON RPZ (%lf FPS - %lf ms)", 1.0 / Avg, Avg * 1000);
+			glfwSetWindowTitle(Window, Buffer);
+			Times.clear();
+		}
 	}
-
-	// bgfx::destroy(Params);
-
-	// bgfx::destroy(ProgramHandle);
-
-	// bgfx::destroy(gVertexBufferHandle);
-	// bgfx::destroy(gIndexBufferHandle);
-
-	bgfx::shutdown();
 
 	OPTICK_SHUTDOWN();
 
