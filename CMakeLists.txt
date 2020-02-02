@@ -54,7 +54,7 @@ macro(COMPILE_SHADER SHADER)
             set(OPTIMIZATION -O 3)
         else()
             set(PLATFORM "linux") # TODO
-            set(PROFILE "glsl")
+            set(PROFILE "")
             set(OPTIMIZATION "")
         endif(WIN32)
 
@@ -66,7 +66,6 @@ macro(COMPILE_SHADER SHADER)
                     -o ${SHADER_DIR}/bin/${BIN_SHADER_NAME}
                     --platform ${PLATFORM}
                     --type ${SHADER_TYPE}
-                    # --verbose
                     --profile ${PROFILE}
                     -i ${CMAKE_SOURCE_DIR}/external/bgfx/bgfx/src
                     ${OPTIMIZATION}
@@ -78,11 +77,15 @@ macro(COMPILE_SHADER SHADER)
     endif()
 endmacro(COMPILE_SHADER)
 
-foreach(SHADER ${IN_SHADERS})
-    compile_shader(${SHADER})
-endforeach()
+# foreach(SHADER ${IN_SHADERS})
+#     compile_shader(${SHADER})
+# endforeach()
 
-add_executable(gluon src/main.cpp ${OUT_SHADERS})
-target_link_libraries(gluon PUBLIC bgfx glfw loguru eastl optick)
+add_executable(gluon src/main.cpp src/renderer.cpp src/render_backend.cpp)
+target_link_libraries(gluon PUBLIC glad glfw loguru eastl optick)
 target_include_directories(gluon PUBLIC external/rapidjson/include external/glm)
 target_compile_definitions(gluon PUBLIC USE_OPTICK=1)
+
+if(MSVC)
+target_compile_definitions(gluon PUBLIC _CRT_SECURE_NO_WARNINGS)
+endif()
