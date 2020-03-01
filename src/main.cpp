@@ -24,13 +24,11 @@
 #include "renderer.h"
 
 static bool gShowStats   = false;
-static bool gEnableVSync = false;
+static bool gEnableVSync = true;
 static int  gMsaaLevel   = 0;
 
 static uint32_t g_WindowWidth  = 1024;
 static uint32_t g_WindowHeight = 768;
-
-using color = glm::vec4;
 
 // static bgfx::InstanceDataBuffer gInstanceDataBuffer;
 
@@ -49,11 +47,12 @@ int   g_ElemCount = 1;
 float g_Delta     = 2.0f / g_ElemCount;
 float g_Radius    = g_Delta / 2.0f;
 
-eastl::vector<color> g_Colors;
+eastl::vector<color>      g_Colors;
+static rendering_context* g_Context;
 
 inline color GetRandomColor()
 {
-	return color((float)rand() / RAND_MAX, (float)rand() / RAND_MAX, (float)rand() / RAND_MAX, 1.0);
+	return color{(float)rand() / RAND_MAX, (float)rand() / RAND_MAX, (float)rand() / RAND_MAX};
 }
 
 void SetColors()
@@ -89,7 +88,7 @@ static void CharCallback(GLFWwindow* Window, unsigned int Codepoint)
 	if (Codepoint == '+')
 	{
 		g_ElemCount *= 2;
-		g_ElemCount = eastl::min(g_ElemCount, 512);
+		g_ElemCount = eastl::min(g_ElemCount, 1024);
 	}
 
 	if (Codepoint == '-')
@@ -108,121 +107,8 @@ static void ResizeCallback(GLFWwindow* Window, int Width, int Height)
 {
 	g_WindowWidth  = Width;
 	g_WindowHeight = Height;
-}
 
-static shader_handle CreateShader(const char* ShaderSource, GLenum ShaderType, const char* ShaderName = nullptr)
-{
-	shader_handle Handle = GLUON_INVALID_HANDLE;
-
-	auto Shader = glCreateShader(ShaderType);
-
-	glShaderSource(Shader, 1, &ShaderSource, nullptr);
-	glCompileShader(Shader);
-
-	GLint Compiled;
-	glGetShaderiv(Shader, GL_COMPILE_STATUS, &Compiled);
-
-	if (Compiled != GL_TRUE)
-	{
-		GLchar InfoLog[512];
-		glGetShaderInfoLog(Shader, 512, nullptr, InfoLog);
-		LOG_F(ERROR, "Could not compile Shader %s:\n%s", ShaderName, InfoLog);
-		glDeleteShader(Shader);
-	}
-	else
-	{
-		Handle.Idx = Shader;
-	}
-
-	return Handle;
-}
-
-static shader_handle LoadShader(const char* ShaderName, GLenum ShaderType)
-{
-	FILE* File = fopen(ShaderName, "r");
-	if (!File)
-	{
-		LOG_F(ERROR, "Cannot open file %s", ShaderName);
-		return GLUON_INVALID_HANDLE;
-	}
-
-	fseek(File, 0, SEEK_END);
-	size_t Size = ftell(File);
-	fseek(File, 0, SEEK_SET);
-
-	char* Data = (char*)malloc(Size + 1);
-	if (!Data)
-	{
-		LOG_F(ERROR, "No more memory available");
-		fclose(File);
-		return GLUON_INVALID_HANDLE;
-	}
-
-	Size       = fread(Data, sizeof(char), Size, File);
-	Data[Size] = '\0';
-
-	shader_handle Handle = CreateShader(Data, ShaderType, ShaderName);
-
-	free(Data);
-	fclose(File);
-
-	return Handle;
-}
-
-static program_handle CreateProgram(shader_handle VertexShader,
-                                    shader_handle FragmentShader = GLUON_INVALID_HANDLE,
-                                    bool          DeleteShaders  = false)
-{
-	program_handle Handle = GLUON_INVALID_HANDLE;
-
-	uint32_t Program = glCreateProgram();
-
-	if (glIsShader(VertexShader.Idx))
-	{
-		glAttachShader(Program, VertexShader.Idx);
-	}
-
-	if (glIsShader(FragmentShader.Idx))
-	{
-		glAttachShader(Program, FragmentShader.Idx);
-	}
-
-	glLinkProgram(Program);
-
-	if (DeleteShaders)
-	{
-		if (glIsShader(VertexShader.Idx))
-		{
-			glDetachShader(Program, VertexShader.Idx);
-			glDeleteShader(VertexShader.Idx);
-		}
-
-		if (glIsShader(FragmentShader.Idx))
-		{
-			glDetachShader(Program, FragmentShader.Idx);
-			glDeleteShader(FragmentShader.Idx);
-		}
-	}
-
-	GLint Linked;
-
-	glGetProgramiv(Program, GL_LINK_STATUS, &Linked);
-
-	if (Linked != GL_TRUE)
-	{
-		GLchar InfoLog[512];
-		glGetProgramInfoLog(Program, 512, nullptr, InfoLog);
-
-		LOG_F(ERROR, "Error linking program (%s, %s):\n%s", "vert", "frag", InfoLog);
-
-		glDeleteProgram(Program);
-	}
-	else
-	{
-		Handle.Idx = Program;
-	}
-
-	return Handle;
+	Resize(g_Context, Width, Height);
 }
 
 int main()
@@ -252,21 +138,6 @@ int main()
 
 	glfwMakeContextCurrent(Window);
 
-	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
-	{
-		LOG_F(FATAL, "Cannot load OpenGL functions");
-	}
-
-#ifdef _DEBUG
-	glEnable(GL_DEBUG_OUTPUT);
-	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-	glDebugMessageCallback(OpenGLMessageCallback, nullptr);
-	glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_FALSE);
-	glDebugMessageControl(GL_DONT_CARE, GL_DEBUG_TYPE_ERROR, GL_DONT_CARE, 0, NULL, GL_TRUE);
-#endif
-
-	LOG_F(INFO, "OpenGL:\n\tVersion %s\n\tVendor %s", glGetString(GL_VERSION), glGetString(GL_VENDOR));
-
 	glfwSetKeyCallback(Window, KeyCallback);
 	glfwSetCharCallback(Window, CharCallback);
 	glfwSetWindowSizeCallback(Window, ResizeCallback);
@@ -279,11 +150,8 @@ int main()
 	g_WindowWidth  = Width;
 	g_WindowHeight = Height;
 
-	glClearColor(0.2f, 0.4f, 0.5f, 1.0f);
-
-	auto VertexShaderHandle   = LoadShader("shaders/test.vert.glsl", GL_VERTEX_SHADER);
-	auto FragmentShaderHandle = LoadShader("shaders/test.frag.glsl", GL_FRAGMENT_SHADER);
-	auto ProgramHandle        = CreateProgram(VertexShaderHandle, FragmentShaderHandle, true);
+	g_Context = CreateRenderingContext();
+	Resize(g_Context, Width, Height);
 
 	// ParamsHandle = bgfx::createUniform("Params", bgfx::UniformType::Vec4, 2);
 
@@ -294,9 +162,6 @@ int main()
 	// FillColorRadiusBuffer = bgfx::createDynamicVertexBuffer(1 << 15, VertexLayout, BGFX_BUFFER_COMPUTE_READ);
 	// BorderColorSizeBuffer = bgfx::createDynamicVertexBuffer(1 << 15, VertexLayout, BGFX_BUFFER_COMPUTE_READ);
 	// IndirectBufferHandle = bgfx::createIndirectBuffer(256);
-
-	rendering_context Context;
-	Context.Program = ProgramHandle;
 
 	SetColors();
 
@@ -311,11 +176,9 @@ int main()
 
 		glfwPollEvents();
 
-		glViewport(0, 0, g_WindowWidth, g_WindowHeight);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		Context.ViewMatrix = glm::mat4(1.0f);
-		Context.ProjMatrix = glm::orthoLH_ZO(0.0f, (float)g_WindowWidth, (float)g_WindowHeight, 0.0f, 0.0f, 100.0f);
+		const auto ViewMatrix = glm::mat4(1.0f);
+		const auto ProjMatrix = glm::orthoLH_ZO(0.0f, (float)g_WindowWidth, (float)g_WindowHeight, 0.0f, 0.0f, 100.0f);
+		SetCameraInfo(g_Context, glm::value_ptr(ViewMatrix), glm::value_ptr(ProjMatrix));
 
 		// DrawRectangle(&Context, g_WindowWidth / 2.f, 50, 100, 100, GetRandomColor());
 		// DrawRectangle(&Context, g_WindowWidth / 2.f, 150, 100, 100, GetRandomColor());
@@ -336,11 +199,11 @@ int main()
 				const float FinalY      = (y + 1.f) * 0.5f * g_WindowHeight;
 				const float FinalRadius = g_Radius * eastl::min(g_WindowWidth, g_WindowHeight) * 0.5f;
 
-				DrawRectangle(&Context, FinalX, FinalY, FinalRadius, FinalRadius, g_Colors[i * g_ElemCount + j]);
+				DrawRectangle(g_Context, FinalX, FinalY, FinalRadius, FinalRadius, g_Colors[i * g_ElemCount + j]);
 			}
 		}
 
-		Flush(&Context);
+		Flush(g_Context);
 
 		// Debug
 		glfwSwapBuffers(Window);

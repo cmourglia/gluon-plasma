@@ -1,7 +1,5 @@
 #pragma once
 
-void OpenGLMessageCallback(unsigned int, unsigned int, unsigned int, unsigned int, int, char const*, void const*);
-
 struct rendering_context;
 
 struct color
@@ -16,9 +14,10 @@ struct vec2
 };
 
 rendering_context* CreateRenderingContext();
+void               DestroyRenderingContext(rendering_context* Context);
 
 void Resize(rendering_context* Context, float Width, float Height);
-void SetCameraInfo(rendering_context* Context, float* ViewMatrix, float* ProjMatrix);
+void SetCameraInfo(rendering_context* Context, const float* ViewMatrix, const float* ProjMatrix);
 
 /**
  * @param X X position of the center of the rectangle
