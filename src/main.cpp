@@ -43,7 +43,7 @@ static void ErrorCallback(int Error, const char* Description)
 	LOG_F(ERROR, "GLFW Error %d: %s\n", Error, Description);
 }
 
-int   g_ElemCount = 1;
+int   g_ElemCount = 2;
 float g_Delta     = 2.0f / g_ElemCount;
 float g_Radius    = g_Delta / 2.0f;
 

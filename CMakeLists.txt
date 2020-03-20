@@ -4,6 +4,8 @@ project(GluonPlasma)
 
 add_subdirectory(external)
 
+set(CMAKE_CXX_STANDARD 17)
+
 set(SHADER_DIR ${CMAKE_SOURCE_DIR}/shaders)
 set(SHADER_SRC_DIR ${SHADER_DIR}/src)
 set(SHADERS test.vert.sc)

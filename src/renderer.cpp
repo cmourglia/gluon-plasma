@@ -6,6 +6,13 @@
 #include <EASTL/numeric_limits.h>
 #include <EASTL/array.h>
 #include <EASTL/vector.h>
+#include <EASTL/unordered_map.h>
+
+#include <thread>
+#include <mutex>
+#include <chrono>
+#include <filesystem>
+#include <atomic>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -82,6 +89,11 @@ struct draw_command
 	GLuint BaseInstance;
 };
 
+namespace fs = std::filesystem;
+
+static fs::file_time_type g_VertexShaderTime;
+static fs::file_time_type g_FragmentShaderTime;
+
 rendering_context* CreateRenderingContext()
 {
 	if (!gladLoadGL())
@@ -96,6 +108,9 @@ rendering_context* CreateRenderingContext()
 #endif
 
 	rendering_context* Context = new rendering_context();
+
+	g_VertexShaderTime   = fs::last_write_time(fs::path("shaders/test.vert.glsl"));
+	g_FragmentShaderTime = fs::last_write_time(fs::path("shaders/test.frag.glsl"));
 
 	auto VertexShaderHandle   = LoadShader("shaders/test.vert.glsl", ShaderType_Vertex);
 	auto FragmentShaderHandle = LoadShader("shaders/test.frag.glsl", ShaderType_Fragment);
@@ -113,8 +128,8 @@ rendering_context* CreateRenderingContext()
 	Context->VertexArray = CreateVertexArray(Context->IndexBuffer);
 	AttachVertexBuffer(Context->VertexArray, Context->VertexBuffer, pos_texcoord_vertex::s_Layout);
 
-	Context->LastRectangleCount   = 512 * 512;
-	Context->RectangleInfoSSBO    = CreateImmutableBuffer(512 * 512 * sizeof(rectangle));
+	Context->LastRectangleCount   = 128 * 128;
+	Context->RectangleInfoSSBO    = CreateImmutableBuffer(128 * 128 * sizeof(rectangle));
 	Context->RectangleInfoSSBOPtr = MapBuffer(Context->RectangleInfoSSBO);
 
 	return Context;
@@ -167,17 +182,37 @@ void Flush(rendering_context* Context)
 {
 	OPTICK_EVENT();
 
+	auto VertexTime   = fs::last_write_time(fs::path("shaders/test.vert.glsl"));
+	auto FragmentTime = fs::last_write_time(fs::path("shaders/test.frag.glsl"));
+
+	if (VertexTime > g_VertexShaderTime || FragmentTime > g_FragmentShaderTime)
+	{
+		g_VertexShaderTime   = VertexTime;
+		g_FragmentShaderTime = FragmentTime;
+
+		auto VertexShaderHandle   = LoadShader("shaders/test.vert.glsl", ShaderType_Vertex);
+		auto FragmentShaderHandle = LoadShader("shaders/test.frag.glsl", ShaderType_Fragment);
+		auto ProgramHandle        = CreateProgram(VertexShaderHandle, FragmentShaderHandle, true);
+
+		Context->Program = ProgramHandle;
+	}
+
 	glClearColor(0.2f, 0.4f, 0.5f, 1.0f);
 	glViewport(0, 0, (GLsizei)Context->ViewportWidth, (GLsizei)Context->ViewportHeight);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 	glUseProgram(Context->Program.Idx);
 
-	const GLint ViewLoc = glGetUniformLocation(Context->Program.Idx, "u_View");
-	const GLint ProjLoc = glGetUniformLocation(Context->Program.Idx, "u_Proj");
+	const GLint ViewLoc         = glGetUniformLocation(Context->Program.Idx, "u_View");
+	const GLint ProjLoc         = glGetUniformLocation(Context->Program.Idx, "u_Proj");
+	const GLint ViewportSizeLoc = glGetUniformLocation(Context->Program.Idx, "u_ViewportSize");
 
 	glUniformMatrix4fv(ViewLoc, 1, GL_FALSE, Context->ViewMatrix);
 	glUniformMatrix4fv(ProjLoc, 1, GL_FALSE, Context->ProjMatrix);
+	glUniform2f(ViewportSizeLoc, Context->ViewportWidth, Context->ViewportHeight);
 
 	const int32_t RectangleCount = (int32_t)Context->Rectangles.size();
 
@@ -196,6 +231,8 @@ void Flush(rendering_context* Context)
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, Context->RectangleInfoSSBO.Idx);
 	glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr, RectangleCount);
+
+	glDisable(GL_BLEND);
 
 	Context->Rectangles.clear();
 	Context->Positions.clear();
