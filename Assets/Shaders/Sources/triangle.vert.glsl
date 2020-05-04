@@ -1,15 +1,30 @@
 #version 450
 
-layout (location = 0) in vec3 in_Position;
-layout (location = 1) in vec3 in_Normal;
-layout (location = 2) in vec2 in_Texcoord;
+struct GVertex
+{
+	float PX, PY, PZ;
+	float NX, NY, NZ;
+	float TU, TV;
+};
+
+layout (binding = 0) readonly buffer b_Vertices
+{
+	GVertex Vertices[];
+};
 
 layout (location = 0) out vec3 out_Color;
 
 void main() {
-	vec3 Position = (in_Position * 0.01) + vec3(0, -0.5, 1);
+	GVertex Vertex = Vertices[gl_VertexIndex];
+
+	vec3 Position = vec3(Vertex.PX, Vertex.PY, Vertex.PZ);
+	vec3 Normal = vec3(Vertex.NX, Vertex.NY, Vertex.NZ);
+	vec2 Texcoord = vec2(Vertex.TU, Vertex.TV);
+
+	Position = (Position * 0.01) + vec3(0, -0.5, 1);
+
 	gl_Position = vec4(Position, 1.0);
 
-	out_Color = in_Normal * 0.5 + 0.5;
-	out_Color = vec3(in_Texcoord, 0);
+	out_Color = Normal * 0.5 + 0.5;
+	out_Color = vec3(Texcoord, 0);
 }

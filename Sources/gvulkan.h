@@ -35,8 +35,6 @@ VkImageView CreateImageView(VkDevice Device, VkImage Image, VkFormat Format);
 
 bool CheckValidationLayerSupport(u32 ValidationLayerCount, const char** ValidationLayerNames);
 
-VkShaderModule CreateShader(VkDevice Device, const char* File);
-
 VkRenderPass CreateRenderPass(VkDevice Device, VkFormat Format);
 
 VkFramebuffer CreateFramebuffer(VkDevice Device, VkRenderPass, u32 AttachmentCount, VkImageView* Attachments, u32 Width, u32 Height);

@@ -1,6 +1,7 @@
 #include "gvulkan.h"
 #include "gswapchain.h"
 #include "gbuffer.h"
+#include "gshader.h"
 
 #include <glfw/glfw3.h>
 #include <glm/glm.hpp>
@@ -93,10 +94,33 @@ private:
 
 			vkCmdBeginRenderPass(CommandBuffer, &PassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
+			VkViewport Viewport = {0, (f32)Swapchain.Extent.height, (f32)Swapchain.Extent.width, -(f32)Swapchain.Extent.height, 0, 1};
+			VkRect2D   Scissor  = {{0, 0}, {Swapchain.Extent.width, Swapchain.Extent.height}};
+
+			vkCmdSetViewport(CommandBuffer, 0, 1, &Viewport);
+			vkCmdSetScissor(CommandBuffer, 0, 1, &Scissor);
+
 			vkCmdBindPipeline(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, Pipeline);
 
-			VkDeviceSize DummyOffset = 0;
-			vkCmdBindVertexBuffers(CommandBuffer, 0, 1, &VertexBuffer.Buffer, &DummyOffset);
+			VkDescriptorBufferInfo BufferInfo = {};
+			BufferInfo.buffer                 = VertexBuffer.Buffer;
+			BufferInfo.offset                 = 0;
+			BufferInfo.range                  = VertexBuffer.Size;
+
+			VkWriteDescriptorSet Descriptors[1] = {};
+			Descriptors[0].sType                = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			Descriptors[0].dstBinding           = 0;
+			Descriptors[0].descriptorCount      = 1;
+			Descriptors[0].descriptorType       = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+			Descriptors[0].pBufferInfo          = &BufferInfo;
+
+			vkCmdPushDescriptorSetKHR(CommandBuffer,
+			                          VK_PIPELINE_BIND_POINT_GRAPHICS,
+			                          PipelineLayout,
+			                          0,
+			                          ARRAY_SIZE(Descriptors),
+			                          Descriptors);
+
 			vkCmdBindIndexBuffer(CommandBuffer, IndexBuffer.Buffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdDrawIndexed(CommandBuffer, (u32)Mesh.Indices.size(), 1, 0, 0, 0);
 
@@ -183,9 +207,9 @@ private:
 		PhysicalDevice = PickPhysicalDevice(Instance, Surface, &QueueIndices);
 		assert(PhysicalDevice);
 
-		const char* DeviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+		const char* DeviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME};
 
-		Device = CreateLogicalDevice(PhysicalDevice, QueueIndices, 1, DeviceExtensions);
+		Device = CreateLogicalDevice(PhysicalDevice, QueueIndices, ARRAY_SIZE(DeviceExtensions), DeviceExtensions);
 		assert(Device);
 
 		vkGetDeviceQueue(Device, QueueIndices.GraphicsFamily.Value(), 0, &GraphicsQueue);
@@ -194,7 +218,16 @@ private:
 
 		Swapchain = CreateSwapchain(PhysicalDevice, Device, Surface, 1024, 768, QueueIndices);
 
-		CreateGraphicsPipeline();
+		GShader VertexShader   = LoadShader(Device, "Assets/Shaders/Bin/triangle.vert.spv");
+		GShader FragmentShader = LoadShader(Device, "Assets/Shaders/Bin/triangle.frag.spv");
+
+		RenderPass     = CreateRenderPass(Device, Swapchain.Format);
+		PipelineLayout = CreatePipelineLayout(Device, VertexShader, FragmentShader);
+
+		Pipeline = CreateGraphicsPipeline(Device, RenderPass, PipelineLayout, VertexShader, FragmentShader);
+
+		DestroyShader(Device, &VertexShader);
+		DestroyShader(Device, &FragmentShader);
 
 		CreateSwapchainFramebuffers(Device, RenderPass, &Swapchain);
 
@@ -209,7 +242,7 @@ private:
 		VkPhysicalDeviceMemoryProperties MemoryProperties;
 		vkGetPhysicalDeviceMemoryProperties(PhysicalDevice, &MemoryProperties);
 
-		VertexBuffer = CreateBuffer(Device, MemoryProperties, Mesh.Vertices.size() * sizeof(GVertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+		VertexBuffer = CreateBuffer(Device, MemoryProperties, Mesh.Vertices.size() * sizeof(GVertex), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		IndexBuffer  = CreateBuffer(Device, MemoryProperties, Mesh.Indices.size() * sizeof(u32), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
 		memcpy(VertexBuffer.Data, Mesh.Vertices.data(), Mesh.Vertices.size() * sizeof(GVertex));
@@ -237,123 +270,6 @@ private:
 
 		glfwDestroyWindow(Window);
 		glfwTerminate();
-	}
-
-	void CreateGraphicsPipeline()
-	{
-		VkShaderModule VertexShader   = CreateShader(Device, "Assets/Shaders/Bin/triangle.vert.spv");
-		VkShaderModule FragmentShader = CreateShader(Device, "Assets/Shaders/Bin/triangle.frag.spv");
-
-		assert(VertexShader != VK_NULL_HANDLE);
-		assert(FragmentShader != VK_NULL_HANDLE);
-
-		VkPipelineShaderStageCreateInfo ShaderStageCIs[2] = {};
-
-		ShaderStageCIs[0].sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		ShaderStageCIs[0].stage  = VK_SHADER_STAGE_VERTEX_BIT;
-		ShaderStageCIs[0].module = VertexShader;
-		ShaderStageCIs[0].pName  = "main";
-
-		ShaderStageCIs[1].sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		ShaderStageCIs[1].stage  = VK_SHADER_STAGE_FRAGMENT_BIT;
-		ShaderStageCIs[1].module = FragmentShader;
-		ShaderStageCIs[1].pName  = "main";
-
-		VkVertexInputBindingDescription VertexInputBindingDescriptions[1] = {};
-		VertexInputBindingDescriptions[0].binding                         = 0;
-		VertexInputBindingDescriptions[0].stride                          = sizeof(GVertex);
-		VertexInputBindingDescriptions[0].inputRate                       = VK_VERTEX_INPUT_RATE_VERTEX;
-
-		VkVertexInputAttributeDescription VertexInputAttributeDescriptions[3] = {};
-		VertexInputAttributeDescriptions[0].binding                           = 0;
-		VertexInputAttributeDescriptions[0].format                            = VK_FORMAT_R32G32B32_SFLOAT;
-		VertexInputAttributeDescriptions[0].location                          = 0;
-		VertexInputAttributeDescriptions[0].offset                            = offsetof(GVertex, Position);
-		VertexInputAttributeDescriptions[1].binding                           = 0;
-		VertexInputAttributeDescriptions[1].format                            = VK_FORMAT_R32G32B32_SFLOAT;
-		VertexInputAttributeDescriptions[1].location                          = 1;
-		VertexInputAttributeDescriptions[1].offset                            = offsetof(GVertex, Normal);
-		VertexInputAttributeDescriptions[2].binding                           = 0;
-		VertexInputAttributeDescriptions[2].format                            = VK_FORMAT_R32G32_SFLOAT;
-		VertexInputAttributeDescriptions[2].location                          = 2;
-		VertexInputAttributeDescriptions[2].offset                            = offsetof(GVertex, Texcoord);
-
-		VkPipelineVertexInputStateCreateInfo VertexInputStateCI = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
-		VertexInputStateCI.vertexBindingDescriptionCount        = ARRAY_SIZE(VertexInputBindingDescriptions);
-		VertexInputStateCI.pVertexBindingDescriptions           = VertexInputBindingDescriptions;
-		VertexInputStateCI.vertexAttributeDescriptionCount      = ARRAY_SIZE(VertexInputAttributeDescriptions);
-		VertexInputStateCI.pVertexAttributeDescriptions         = VertexInputAttributeDescriptions;
-
-		VkPipelineInputAssemblyStateCreateInfo InputAssemblyStateCI = {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
-		InputAssemblyStateCI.topology                               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-		InputAssemblyStateCI.primitiveRestartEnable                 = VK_FALSE;
-
-		VkViewport Viewport = {};
-		Viewport.x          = 0.0f;
-		Viewport.y          = (f32)Swapchain.Extent.height;
-		Viewport.width      = (f32)Swapchain.Extent.width;
-		Viewport.height     = -(f32)Swapchain.Extent.height;
-		Viewport.minDepth   = 0.0f;
-		Viewport.maxDepth   = 1.0f;
-
-		VkRect2D Scissor = {};
-		Scissor.offset   = {0, 0};
-		Scissor.extent   = Swapchain.Extent;
-
-		VkPipelineViewportStateCreateInfo ViewportState = {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
-		ViewportState.viewportCount                     = 1;
-		ViewportState.pViewports                        = &Viewport;
-		ViewportState.scissorCount                      = 1;
-		ViewportState.pScissors                         = &Scissor;
-
-		VkPipelineRasterizationStateCreateInfo RasterizationStateCI = {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
-		RasterizationStateCI.depthClampEnable                       = VK_FALSE;
-		RasterizationStateCI.rasterizerDiscardEnable                = VK_FALSE;
-		RasterizationStateCI.polygonMode                            = VK_POLYGON_MODE_FILL;
-		RasterizationStateCI.lineWidth                              = 1.0f;
-		RasterizationStateCI.depthBiasEnable                        = VK_FALSE;
-
-		VkPipelineMultisampleStateCreateInfo MultisampleStateCI = {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
-		MultisampleStateCI.sampleShadingEnable                  = VK_FALSE;
-		MultisampleStateCI.rasterizationSamples                 = VK_SAMPLE_COUNT_1_BIT;
-
-		VkPipelineDepthStencilStateCreateInfo DepthStencilStateCI = {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
-
-		VkPipelineColorBlendAttachmentState ColorBlendAttachmentState = {};
-		ColorBlendAttachmentState.colorWriteMask                      = COLOR_MASK_RGBA;
-		ColorBlendAttachmentState.blendEnable                         = VK_FALSE;
-
-		VkPipelineColorBlendStateCreateInfo ColorBlendStateCI = {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
-		ColorBlendStateCI.logicOpEnable                       = VK_FALSE;
-		ColorBlendStateCI.attachmentCount                     = 1;
-		ColorBlendStateCI.pAttachments                        = &ColorBlendAttachmentState;
-
-		VkPipelineLayoutCreateInfo PipelineLayoutCI = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
-		VK_CHECK(vkCreatePipelineLayout(Device, &PipelineLayoutCI, nullptr, &PipelineLayout));
-
-		RenderPass = CreateRenderPass(Device, Swapchain.Format);
-
-		VkGraphicsPipelineCreateInfo GraphicsPipelineCI = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
-		GraphicsPipelineCI.stageCount                   = 2;
-		GraphicsPipelineCI.pStages                      = ShaderStageCIs;
-		GraphicsPipelineCI.pVertexInputState            = &VertexInputStateCI;
-		GraphicsPipelineCI.pInputAssemblyState          = &InputAssemblyStateCI;
-		GraphicsPipelineCI.pViewportState               = &ViewportState;
-		GraphicsPipelineCI.pRasterizationState          = &RasterizationStateCI;
-		GraphicsPipelineCI.pMultisampleState            = &MultisampleStateCI;
-		GraphicsPipelineCI.pDepthStencilState           = &DepthStencilStateCI;
-		GraphicsPipelineCI.pColorBlendState             = &ColorBlendStateCI;
-		GraphicsPipelineCI.pDynamicState                = nullptr;
-		GraphicsPipelineCI.layout                       = PipelineLayout;
-		GraphicsPipelineCI.renderPass                   = RenderPass;
-		GraphicsPipelineCI.subpass                      = 0;
-		GraphicsPipelineCI.basePipelineHandle           = VK_NULL_HANDLE;
-		GraphicsPipelineCI.basePipelineIndex            = -1;
-
-		VK_CHECK(vkCreateGraphicsPipelines(Device, VK_NULL_HANDLE, 1, &GraphicsPipelineCI, nullptr, &Pipeline));
-
-		vkDestroyShaderModule(Device, VertexShader, nullptr);
-		vkDestroyShaderModule(Device, FragmentShader, nullptr);
 	}
 
 	std::vector<const char*> GetRequiredExtensions()

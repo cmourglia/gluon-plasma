@@ -15,6 +15,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityF
 	if (Severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
 	{
 		LOG_F(ERROR, "%s: %s", CallbackData->pMessageIdName, CallbackData->pMessage);
+		assert(false);
 	}
 	else if (Severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
 	{
@@ -58,7 +59,7 @@ VkInstance CreateInstance(u32 ExtensionCount, const char** ExtensionNames, u32 L
 	AppInfo.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
 	AppInfo.pEngineName        = "No Engine";
 	AppInfo.engineVersion      = VK_MAKE_VERSION(1, 0, 0);
-	AppInfo.apiVersion         = VK_API_VERSION_1_0;
+	AppInfo.apiVersion         = VK_API_VERSION_1_1;
 
 	VkInstanceCreateInfo CreateInfo    = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
 	CreateInfo.pApplicationInfo        = &AppInfo;
@@ -152,34 +153,6 @@ VkImageView CreateImageView(VkDevice Device, VkImage Image, VkFormat ImageFormat
 	VK_CHECK(vkCreateImageView(Device, &CreateInfo, nullptr, &ImageView));
 
 	return ImageView;
-}
-
-VkShaderModule CreateShader(VkDevice Device, const char* Filename)
-{
-	FILE* File = fopen(Filename, "rb");
-
-	if (nullptr == File)
-	{
-		return VK_NULL_HANDLE;
-	}
-
-	fseek(File, 0, SEEK_END);
-	const u64 Size = ftell(File);
-	rewind(File);
-
-	std::vector<u8> Bytes(Size);
-	fread(Bytes.data(), 1, Size, File);
-
-	fclose(File);
-
-	VkShaderModuleCreateInfo CreateInfo = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
-	CreateInfo.codeSize                 = Size;
-	CreateInfo.pCode                    = (u32*)Bytes.data();
-
-	VkShaderModule ShaderModule;
-	VK_CHECK(vkCreateShaderModule(Device, &CreateInfo, nullptr, &ShaderModule));
-
-	return ShaderModule;
 }
 
 VkRenderPass CreateRenderPass(VkDevice Device, VkFormat Format)
