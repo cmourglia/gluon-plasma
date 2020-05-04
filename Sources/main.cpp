@@ -3,34 +3,28 @@
 #include "gbuffer.h"
 
 #include <glfw/glfw3.h>
-
 #include <glm/glm.hpp>
+#include <loguru.hpp>
+#include <tiny_gltf.h>
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
 #include <vector>
+#include <algorithm>
 
 struct GVertex
 {
-	f32 Position[2];
-	f32 Color[3];
+	f32 Position[3];
+	f32 Normal[3];
+	f32 Texcoord[2];
 };
 
 struct GMesh
 {
 	std::vector<GVertex> Vertices;
-	std::vector<u16>     Indices;
-};
-
-static const GMesh Mesh = {
-    {
-        {0.0f, -0.5f, 1.0f, 0.0f, 0.0f},
-        {0.5f, 0.5f, 0.0f, 1.0f, 0.0f},
-        {-0.5f, 0.5f, 0.0f, 0.0f, 1.0f},
-    },
-    {0, 1, 2},
+	std::vector<u32>     Indices;
 };
 
 class GHelloTriangleApplication
@@ -47,6 +41,7 @@ private:
 	void Init()
 	{
 		InitWindow();
+		LoadMesh("Assets/Meshes/Duck/Duck.gltf");
 		InitVulkan();
 	}
 
@@ -102,7 +97,7 @@ private:
 
 			VkDeviceSize DummyOffset = 0;
 			vkCmdBindVertexBuffers(CommandBuffer, 0, 1, &VertexBuffer.Buffer, &DummyOffset);
-			vkCmdBindIndexBuffer(CommandBuffer, IndexBuffer.Buffer, 0, VK_INDEX_TYPE_UINT16);
+			vkCmdBindIndexBuffer(CommandBuffer, IndexBuffer.Buffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdDrawIndexed(CommandBuffer, (u32)Mesh.Indices.size(), 1, 0, 0, 0);
 
 			vkCmdEndRenderPass(CommandBuffer);
@@ -215,10 +210,10 @@ private:
 		vkGetPhysicalDeviceMemoryProperties(PhysicalDevice, &MemoryProperties);
 
 		VertexBuffer = CreateBuffer(Device, MemoryProperties, Mesh.Vertices.size() * sizeof(GVertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-		IndexBuffer  = CreateBuffer(Device, MemoryProperties, Mesh.Indices.size() * sizeof(u16), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+		IndexBuffer  = CreateBuffer(Device, MemoryProperties, Mesh.Indices.size() * sizeof(u32), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
 		memcpy(VertexBuffer.Data, Mesh.Vertices.data(), Mesh.Vertices.size() * sizeof(GVertex));
-		memcpy(IndexBuffer.Data, Mesh.Indices.data(), Mesh.Indices.size() * sizeof(u16));
+		memcpy(IndexBuffer.Data, Mesh.Indices.data(), Mesh.Indices.size() * sizeof(u32));
 	}
 
 	void Cleanup()
@@ -269,15 +264,19 @@ private:
 		VertexInputBindingDescriptions[0].stride                          = sizeof(GVertex);
 		VertexInputBindingDescriptions[0].inputRate                       = VK_VERTEX_INPUT_RATE_VERTEX;
 
-		VkVertexInputAttributeDescription VertexInputAttributeDescriptions[2] = {};
+		VkVertexInputAttributeDescription VertexInputAttributeDescriptions[3] = {};
 		VertexInputAttributeDescriptions[0].binding                           = 0;
-		VertexInputAttributeDescriptions[0].format                            = VK_FORMAT_R32G32_SFLOAT;
+		VertexInputAttributeDescriptions[0].format                            = VK_FORMAT_R32G32B32_SFLOAT;
 		VertexInputAttributeDescriptions[0].location                          = 0;
 		VertexInputAttributeDescriptions[0].offset                            = offsetof(GVertex, Position);
 		VertexInputAttributeDescriptions[1].binding                           = 0;
 		VertexInputAttributeDescriptions[1].format                            = VK_FORMAT_R32G32B32_SFLOAT;
 		VertexInputAttributeDescriptions[1].location                          = 1;
-		VertexInputAttributeDescriptions[1].offset                            = offsetof(GVertex, Color);
+		VertexInputAttributeDescriptions[1].offset                            = offsetof(GVertex, Normal);
+		VertexInputAttributeDescriptions[2].binding                           = 0;
+		VertexInputAttributeDescriptions[2].format                            = VK_FORMAT_R32G32_SFLOAT;
+		VertexInputAttributeDescriptions[2].location                          = 2;
+		VertexInputAttributeDescriptions[2].offset                            = offsetof(GVertex, Texcoord);
 
 		VkPipelineVertexInputStateCreateInfo VertexInputStateCI = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
 		VertexInputStateCI.vertexBindingDescriptionCount        = ARRAY_SIZE(VertexInputBindingDescriptions);
@@ -291,9 +290,9 @@ private:
 
 		VkViewport Viewport = {};
 		Viewport.x          = 0.0f;
-		Viewport.y          = 0.0f;
+		Viewport.y          = (f32)Swapchain.Extent.height;
 		Viewport.width      = (f32)Swapchain.Extent.width;
-		Viewport.height     = (f32)Swapchain.Extent.height;
+		Viewport.height     = -(f32)Swapchain.Extent.height;
 		Viewport.minDepth   = 0.0f;
 		Viewport.maxDepth   = 1.0f;
 
@@ -343,7 +342,6 @@ private:
 		GraphicsPipelineCI.pRasterizationState          = &RasterizationStateCI;
 		GraphicsPipelineCI.pMultisampleState            = &MultisampleStateCI;
 		GraphicsPipelineCI.pDepthStencilState           = &DepthStencilStateCI;
-		GraphicsPipelineCI.pDepthStencilState           = nullptr;
 		GraphicsPipelineCI.pColorBlendState             = &ColorBlendStateCI;
 		GraphicsPipelineCI.pDynamicState                = nullptr;
 		GraphicsPipelineCI.layout                       = PipelineLayout;
@@ -387,8 +385,132 @@ private:
 #endif
 	}
 
+	void LoadMesh(const char* Filename)
+	{
+		tinygltf::Model    Model;
+		tinygltf::TinyGLTF Loader;
+
+		std::string Error;
+		std::string Warning;
+
+		bool Result = Loader.LoadASCIIFromFile(&Model, &Error, &Warning, Filename);
+
+		if (!Warning.empty())
+		{
+			LOG_F(WARNING, "Loader: %s", Warning.c_str());
+		}
+
+		if (!Error.empty())
+		{
+			LOG_F(ERROR, "Loader: %s", Error.c_str());
+		}
+
+		assert(Result);
+
+		for (const auto& GLTFMesh : Model.meshes)
+		{
+			for (const auto& Primitive : GLTFMesh.primitives)
+			{
+				{
+					tinygltf::Accessor   IndicesAccessor = Model.accessors[Primitive.indices];
+					tinygltf::BufferView BufferView      = Model.bufferViews[IndicesAccessor.bufferView];
+					tinygltf::Buffer     Buffer          = Model.buffers[BufferView.buffer];
+
+					const u8* DataPtr    = Buffer.data.data() + BufferView.byteOffset + IndicesAccessor.byteOffset;
+					const i32 ByteStride = IndicesAccessor.ByteStride(BufferView);
+					const u64 Count      = IndicesAccessor.count;
+
+					switch (IndicesAccessor.componentType)
+					{
+						case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+						{
+							const u16* Ptr = (u16*)DataPtr;
+							for (u64 Index = 0; Index < Count; ++Index)
+							{
+								Mesh.Indices.push_back(*(Ptr++));
+							}
+						}
+						break;
+
+						case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
+						{
+							const u32* Ptr = (u32*)DataPtr;
+							for (u64 Index = 0; Index < Count; ++Index)
+							{
+								Mesh.Indices.push_back(*(Ptr++));
+							}
+						}
+						break;
+					}
+				}
+
+				assert(Primitive.mode == TINYGLTF_MODE_TRIANGLES);
+				for (const auto& Attribute : Primitive.attributes)
+				{
+					const auto& AttributeAccessor = Model.accessors[Attribute.second];
+					const auto& BufferView        = Model.bufferViews[AttributeAccessor.bufferView];
+					const auto& Buffer            = Model.buffers[BufferView.buffer];
+
+					const u8* DataPtr    = Buffer.data.data() + BufferView.byteOffset + AttributeAccessor.byteOffset;
+					const i32 ByteStride = AttributeAccessor.ByteStride(BufferView);
+					const u64 Count      = AttributeAccessor.count;
+
+					if (Mesh.Vertices.empty())
+					{
+						Mesh.Vertices.resize(Count);
+					}
+
+					if (Attribute.first == "POSITION")
+					{
+						assert(AttributeAccessor.type == TINYGLTF_TYPE_VEC3);
+						assert(AttributeAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
+
+						const f32* Ptr = (f32*)DataPtr;
+						for (u64 Index = 0; Index < Count; ++Index)
+						{
+							Mesh.Vertices[Index].Position[0] = *(Ptr++);
+							Mesh.Vertices[Index].Position[1] = *(Ptr++);
+							Mesh.Vertices[Index].Position[2] = *(Ptr++);
+						}
+					}
+					else if (Attribute.first == "NORMAL")
+					{
+						assert(AttributeAccessor.type == TINYGLTF_TYPE_VEC3);
+						assert(AttributeAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
+
+						const f32* Ptr = (f32*)DataPtr;
+						for (u64 Index = 0; Index < Count; ++Index)
+						{
+							Mesh.Vertices[Index].Normal[0] = *(Ptr++);
+							Mesh.Vertices[Index].Normal[1] = *(Ptr++);
+							Mesh.Vertices[Index].Normal[2] = *(Ptr++);
+						}
+					}
+					else if (Attribute.first == "TEXCOORD_0")
+					{
+						assert(AttributeAccessor.type == TINYGLTF_TYPE_VEC2);
+						assert(AttributeAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
+
+						const f32* Ptr = (f32*)DataPtr;
+						for (u64 Index = 0; Index < Count; ++Index)
+						{
+							Mesh.Vertices[Index].Texcoord[0] = *(Ptr++);
+							Mesh.Vertices[Index].Texcoord[1] = *(Ptr++);
+						}
+					}
+					else
+					{
+						LOG_F(WARNING, "%s is not handled", Attribute.first.c_str());
+					}
+				}
+			}
+		}
+	}
+
 private:
 	GLFWwindow* Window;
+
+	GMesh Mesh;
 
 	VkInstance               Instance;
 	VkDebugUtilsMessengerEXT DebugMessenger;
