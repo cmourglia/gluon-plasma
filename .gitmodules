@@ -16,3 +16,6 @@
 [submodule "ThirdParty/VulkanUtils"]
 	path = ThirdParty/VulkanUtils
 	url = https://github.com/cmourglia/VulkanUtils
+[submodule "ThirdParty/assimp"]
+	path = ThirdParty/assimp
+	url = https://github.com/assimp/assimp
