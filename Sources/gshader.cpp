@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include <vector>
+
 GShader LoadShader(VkDevice Device, const char* Filename)
 {
 	FILE* File = fopen(Filename, "rb");
@@ -40,21 +42,34 @@ void DestroyShader(VkDevice Device, GShader* Shader)
 	vkDestroyShaderModule(Device, Shader->Module, nullptr);
 }
 
-VkPipelineLayout CreatePipelineLayout(VkDevice Device, const GShader& VertexShader, const GShader& FragmentShader)
+static VkDescriptorSetLayout CreateSetLayout(VkDevice Device)
 {
-	VkDescriptorSetLayoutBinding SetBindings[1] = {};
-	SetBindings[0].binding                      = 0;
-	SetBindings[0].descriptorType               = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	SetBindings[0].descriptorCount              = 1;
-	SetBindings[0].stageFlags                   = VK_SHADER_STAGE_VERTEX_BIT;
+	std::vector<VkDescriptorSetLayoutBinding> SetBindings;
 
-	VkDescriptorSetLayoutCreateInfo SetLayoutCreateInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-	SetLayoutCreateInfo.flags                           = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
-	SetLayoutCreateInfo.bindingCount                    = ARRAY_SIZE(SetBindings);
-	SetLayoutCreateInfo.pBindings                       = SetBindings;
+	{
+		VkDescriptorSetLayoutBinding SetBinding;
+		SetBinding.binding         = 0;
+		SetBinding.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		SetBinding.descriptorCount = 1;
+		SetBinding.stageFlags      = VK_SHADER_STAGE_VERTEX_BIT;
+
+		SetBindings.push_back(SetBinding);
+	}
+
+	VkDescriptorSetLayoutCreateInfo CreateInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+	CreateInfo.flags                           = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
+	CreateInfo.bindingCount                    = (u32)SetBindings.size();
+	CreateInfo.pBindings                       = SetBindings.data();
 
 	VkDescriptorSetLayout SetLayout;
-	VK_CHECK(vkCreateDescriptorSetLayout(Device, &SetLayoutCreateInfo, nullptr, &SetLayout));
+	VK_CHECK(vkCreateDescriptorSetLayout(Device, &CreateInfo, nullptr, &SetLayout));
+
+	return SetLayout;
+}
+
+VkPipelineLayout CreatePipelineLayout(VkDevice Device, const GShader& VertexShader, const GShader& FragmentShader)
+{
+	VkDescriptorSetLayout SetLayout = CreateSetLayout(Device);
 
 	VkPipelineLayoutCreateInfo LayoutCreateInfo = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
 	LayoutCreateInfo.setLayoutCount             = 1;
@@ -67,6 +82,41 @@ VkPipelineLayout CreatePipelineLayout(VkDevice Device, const GShader& VertexShad
 	// vkDestroyDescriptorSetLayout(Device, SetLayout, nullptr);
 
 	return Layout;
+}
+
+VkDescriptorUpdateTemplate CreateUpdateTemplate(VkDevice Device, VkPipelineBindPoint BindPoint, VkPipelineLayout Layout)
+{
+	VkDescriptorSetLayout SetLayout = CreateSetLayout(Device);
+
+	std::vector<VkDescriptorUpdateTemplateEntry> Entries;
+
+	{
+		VkDescriptorUpdateTemplateEntry Entry;
+		Entry.dstBinding      = 0;
+		Entry.dstArrayElement = 0;
+		Entry.descriptorCount = 1;
+		Entry.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		Entry.offset          = sizeof(GDescriptorInfo) * 0;
+		Entry.stride          = sizeof(GDescriptorInfo);
+
+		Entries.push_back(Entry);
+	}
+
+	VkDescriptorUpdateTemplateCreateInfo CreateInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO};
+	CreateInfo.descriptorUpdateEntryCount           = (u32)Entries.size();
+	CreateInfo.pDescriptorUpdateEntries             = Entries.data();
+	CreateInfo.templateType                         = VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_PUSH_DESCRIPTORS_KHR;
+	CreateInfo.descriptorSetLayout                  = SetLayout;
+	CreateInfo.pipelineBindPoint                    = BindPoint;
+	CreateInfo.pipelineLayout                       = Layout;
+
+	VkDescriptorUpdateTemplate UpdateTemplate;
+	VK_CHECK(vkCreateDescriptorUpdateTemplate(Device, &CreateInfo, nullptr, &UpdateTemplate));
+
+	// TODO: We need to destroy this at some point
+	// vkDestroyDescriptorSetLayout(Device, SetLayout, nullptr);
+
+	return UpdateTemplate;
 }
 
 VkPipeline CreateGraphicsPipeline(VkDevice         Device,

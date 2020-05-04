@@ -102,24 +102,8 @@ private:
 
 			vkCmdBindPipeline(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, Pipeline);
 
-			VkDescriptorBufferInfo BufferInfo = {};
-			BufferInfo.buffer                 = VertexBuffer.Buffer;
-			BufferInfo.offset                 = 0;
-			BufferInfo.range                  = VertexBuffer.Size;
-
-			VkWriteDescriptorSet Descriptors[1] = {};
-			Descriptors[0].sType                = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			Descriptors[0].dstBinding           = 0;
-			Descriptors[0].descriptorCount      = 1;
-			Descriptors[0].descriptorType       = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-			Descriptors[0].pBufferInfo          = &BufferInfo;
-
-			vkCmdPushDescriptorSetKHR(CommandBuffer,
-			                          VK_PIPELINE_BIND_POINT_GRAPHICS,
-			                          PipelineLayout,
-			                          0,
-			                          ARRAY_SIZE(Descriptors),
-			                          Descriptors);
+			GDescriptorInfo Descriptors[] = {VertexBuffer.Buffer};
+			vkCmdPushDescriptorSetWithTemplateKHR(CommandBuffer, UpdateTemplate, PipelineLayout, 0, Descriptors);
 
 			vkCmdBindIndexBuffer(CommandBuffer, IndexBuffer.Buffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdDrawIndexed(CommandBuffer, (u32)Mesh.Indices.size(), 1, 0, 0, 0);
@@ -223,6 +207,7 @@ private:
 
 		RenderPass     = CreateRenderPass(Device, Swapchain.Format);
 		PipelineLayout = CreatePipelineLayout(Device, VertexShader, FragmentShader);
+		UpdateTemplate = CreateUpdateTemplate(Device, VK_PIPELINE_BIND_POINT_GRAPHICS, PipelineLayout);
 
 		Pipeline = CreateGraphicsPipeline(Device, RenderPass, PipelineLayout, VertexShader, FragmentShader);
 
@@ -440,9 +425,10 @@ private:
 	VkQueue PresentQueue;
 	VkQueue ComputeQueue;
 
-	VkPipeline       Pipeline;
-	VkRenderPass     RenderPass;
-	VkPipelineLayout PipelineLayout;
+	VkPipeline                 Pipeline;
+	VkRenderPass               RenderPass;
+	VkPipelineLayout           PipelineLayout;
+	VkDescriptorUpdateTemplate UpdateTemplate;
 
 	VkCommandPool   CommandPool;
 	VkCommandBuffer CommandBuffer;
