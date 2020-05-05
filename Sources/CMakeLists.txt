@@ -22,7 +22,6 @@ add_executable(${PROJECT_NAME}
 	gvulkan.h gswapchain.h gbuffer.h gshader.h gmesh_loader.h
 	${THIRD_PARTY_DIR}/volk/volk.c
 	${THIRD_PARTY_DIR}/loguru/loguru.cpp
-	tinygltf.cpp
 	${OUT_SHADERS}
 )
 

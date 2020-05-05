@@ -15,6 +15,10 @@
 #include <vector>
 #include <algorithm>
 
+static void CursorPosCallback(GLFWwindow* Window, f64 X, f64 Y);
+static void MouseButtonCallback(GLFWwindow* Window, i32 Button, i32 Action, i32 Mods);
+static void KeyCallback(GLFWwindow* Window, i32 Key, i32 Scancode, i32 Action, i32 Mods);
+
 class GHelloTriangleApplication
 {
 public:
@@ -158,6 +162,11 @@ private:
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 		Window = glfwCreateWindow(1024, 768, "Gluon", nullptr, nullptr);
+
+		glfwSetWindowUserPointer(Window, this);
+		glfwSetCursorPosCallback(Window, CursorPosCallback);
+		glfwSetMouseButtonCallback(Window, MouseButtonCallback);
+		glfwSetKeyCallback(Window, KeyCallback);
 	}
 
 	void InitVulkan()
@@ -309,6 +318,43 @@ private:
 	GBuffer VertexBuffer;
 	GBuffer ColorBuffer;
 	GBuffer IndexBuffer;
+
+public:
+	void MouseMoved(f64 X, f64 Y)
+	{
+		f64 DeltaX = m_LastMouseX - X;
+		f64 DeltaY = m_LastMouseY - Y;
+
+		if (m_LeftButtonPressed)
+		{
+		}
+
+		m_LastMouseX = X;
+		m_LastMouseY = Y;
+	}
+
+	void MouseButtonPressed(i32 Button, i32 Mods)
+	{
+		if (GLFW_MOUSE_BUTTON_LEFT == Button)
+		{
+			m_LeftButtonPressed = true;
+		}
+	}
+
+	void MouseButtonReleased(i32 Button, i32 Mods)
+	{
+		if (GLFW_MOUSE_BUTTON_LEFT == Button)
+		{
+			m_LeftButtonPressed = false;
+		}
+	}
+
+	void KeyPressed(i32 Key, i32 Scancode, i32 Mods) {}
+	void KeyReleased(i32 Key, i32 Scancode, i32 Mods) {}
+
+private:
+	bool m_LeftButtonPressed;
+	f64  m_LastMouseX, m_LastMouseY;
 };
 
 int main()
@@ -317,4 +363,36 @@ int main()
 	App.Run();
 
 	return 0;
+}
+
+static void CursorPosCallback(GLFWwindow* Window, f64 X, f64 Y)
+{
+	GHelloTriangleApplication* App = (GHelloTriangleApplication*)glfwGetWindowUserPointer(Window);
+	App->MouseMoved(X, Y);
+}
+
+static void MouseButtonCallback(GLFWwindow* Window, i32 Button, i32 Action, i32 Mods)
+{
+	GHelloTriangleApplication* App = (GHelloTriangleApplication*)glfwGetWindowUserPointer(Window);
+	if (GLFW_PRESS == Action)
+	{
+		App->MouseButtonPressed(Button, Mods);
+	}
+	else if (GLFW_RELEASE == Action)
+	{
+		App->MouseButtonReleased(Button, Mods);
+	}
+}
+
+static void KeyCallback(GLFWwindow* Window, i32 Key, i32 Scancode, i32 Action, i32 Mods)
+{
+	GHelloTriangleApplication* App = (GHelloTriangleApplication*)glfwGetWindowUserPointer(Window);
+	if (GLFW_PRESS == Action)
+	{
+		App->KeyPressed(Key, Scancode, Mods);
+	}
+	else if (GLFW_RELEASE == Action)
+	{
+		App->KeyReleased(Key, Scancode, Mods);
+	}
 }
