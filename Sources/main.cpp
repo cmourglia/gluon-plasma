@@ -103,7 +103,7 @@ private:
 			vkCmdBindPipeline(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, Pipeline);
 
 			GDescriptorInfo Descriptors[] = {VertexBuffer.Buffer};
-			vkCmdPushDescriptorSetWithTemplateKHR(CommandBuffer, UpdateTemplate, PipelineLayout, 0, Descriptors);
+			vkCmdPushDescriptorSetWithTemplateKHR(CommandBuffer, MeshProgram.UpdateTemplate, MeshProgram.Layout, 0, Descriptors);
 
 			vkCmdBindIndexBuffer(CommandBuffer, IndexBuffer.Buffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdDrawIndexed(CommandBuffer, (u32)Mesh.Indices.size(), 1, 0, 0, 0);
@@ -205,11 +205,11 @@ private:
 		GShader VertexShader   = LoadShader(Device, "Assets/Shaders/Bin/triangle.vert.spv");
 		GShader FragmentShader = LoadShader(Device, "Assets/Shaders/Bin/triangle.frag.spv");
 
-		RenderPass     = CreateRenderPass(Device, Swapchain.Format);
-		PipelineLayout = CreatePipelineLayout(Device, VertexShader, FragmentShader);
-		UpdateTemplate = CreateUpdateTemplate(Device, VK_PIPELINE_BIND_POINT_GRAPHICS, PipelineLayout);
+		RenderPass = CreateRenderPass(Device, Swapchain.Format);
 
-		Pipeline = CreateGraphicsPipeline(Device, RenderPass, PipelineLayout, VertexShader, FragmentShader);
+		MeshProgram = CreateProgram(Device, VK_PIPELINE_BIND_POINT_GRAPHICS, VertexShader, FragmentShader);
+
+		Pipeline = CreateGraphicsPipeline(Device, RenderPass, MeshProgram.Layout, VertexShader, FragmentShader);
 
 		DestroyShader(Device, &VertexShader);
 		DestroyShader(Device, &FragmentShader);
@@ -242,8 +242,8 @@ private:
 		vkDestroyCommandPool(Device, CommandPool, nullptr);
 
 		vkDestroyPipeline(Device, Pipeline, nullptr);
+		DestroyProgram(Device, &MeshProgram);
 		vkDestroyRenderPass(Device, RenderPass, nullptr);
-		vkDestroyPipelineLayout(Device, PipelineLayout, nullptr);
 
 		DestroySwapchain(Device, &Swapchain);
 		vkDestroyDevice(Device, nullptr);
@@ -425,10 +425,9 @@ private:
 	VkQueue PresentQueue;
 	VkQueue ComputeQueue;
 
-	VkPipeline                 Pipeline;
-	VkRenderPass               RenderPass;
-	VkPipelineLayout           PipelineLayout;
-	VkDescriptorUpdateTemplate UpdateTemplate;
+	VkPipeline   Pipeline;
+	VkRenderPass RenderPass;
+	GProgram     MeshProgram;
 
 	VkCommandPool   CommandPool;
 	VkCommandBuffer CommandBuffer;

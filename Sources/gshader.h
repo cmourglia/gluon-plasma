@@ -8,18 +8,24 @@ struct GShader
 };
 
 GShader LoadShader(VkDevice Device, const char* Filename);
+void    DestroyShader(VkDevice Device, GShader* Shader);
 
-VkPipelineLayout CreatePipelineLayout(VkDevice Device, const GShader& VertexShader, const GShader& FragmentShader);
+struct GProgram
+{
+	VkPipelineBindPoint        BindPoint;
+	VkDescriptorSetLayout      SetLayout;
+	VkPipelineLayout           Layout;
+	VkDescriptorUpdateTemplate UpdateTemplate;
+};
+
+GProgram CreateProgram(VkDevice Device, VkPipelineBindPoint BindPoint, const GShader& VertexShader, const GShader& FragmentShader);
+void     DestroyProgram(VkDevice Device, GProgram* Program);
 
 VkPipeline CreateGraphicsPipeline(VkDevice         Device,
                                   VkRenderPass     RenderPass,
                                   VkPipelineLayout Layout,
                                   const GShader&   VertexShader,
                                   const GShader&   FragmentShader);
-
-VkDescriptorUpdateTemplate CreateUpdateTemplate(VkDevice Device, VkPipelineBindPoint BindPoint, VkPipelineLayout Layout);
-
-void DestroyShader(VkDevice Device, GShader* Shader);
 
 union GDescriptorInfo {
 	VkDescriptorImageInfo  Image;

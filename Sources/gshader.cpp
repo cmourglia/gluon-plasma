@@ -67,10 +67,11 @@ static VkDescriptorSetLayout CreateSetLayout(VkDevice Device)
 	return SetLayout;
 }
 
-VkPipelineLayout CreatePipelineLayout(VkDevice Device, const GShader& VertexShader, const GShader& FragmentShader)
+static VkPipelineLayout CreatePipelineLayout(VkDevice              Device,
+                                             VkDescriptorSetLayout SetLayout,
+                                             const GShader&        VertexShader,
+                                             const GShader&        FragmentShader)
 {
-	VkDescriptorSetLayout SetLayout = CreateSetLayout(Device);
-
 	VkPipelineLayoutCreateInfo LayoutCreateInfo = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
 	LayoutCreateInfo.setLayoutCount             = 1;
 	LayoutCreateInfo.pSetLayouts                = &SetLayout;
@@ -84,10 +85,11 @@ VkPipelineLayout CreatePipelineLayout(VkDevice Device, const GShader& VertexShad
 	return Layout;
 }
 
-VkDescriptorUpdateTemplate CreateUpdateTemplate(VkDevice Device, VkPipelineBindPoint BindPoint, VkPipelineLayout Layout)
+static VkDescriptorUpdateTemplate CreateUpdateTemplate(VkDevice              Device,
+                                                       VkPipelineBindPoint   BindPoint,
+                                                       VkDescriptorSetLayout SetLayout,
+                                                       VkPipelineLayout      Layout)
 {
-	VkDescriptorSetLayout SetLayout = CreateSetLayout(Device);
-
 	std::vector<VkDescriptorUpdateTemplateEntry> Entries;
 
 	{
@@ -117,6 +119,25 @@ VkDescriptorUpdateTemplate CreateUpdateTemplate(VkDevice Device, VkPipelineBindP
 	// vkDestroyDescriptorSetLayout(Device, SetLayout, nullptr);
 
 	return UpdateTemplate;
+}
+
+GProgram CreateProgram(VkDevice Device, VkPipelineBindPoint BindPoint, const GShader& VertexShader, const GShader& FragmentShader)
+{
+	GProgram Program = {};
+
+	Program.BindPoint      = BindPoint;
+	Program.SetLayout      = CreateSetLayout(Device);
+	Program.Layout         = CreatePipelineLayout(Device, Program.SetLayout, VertexShader, FragmentShader);
+	Program.UpdateTemplate = CreateUpdateTemplate(Device, BindPoint, Program.SetLayout, Program.Layout);
+
+	return Program;
+}
+
+void DestroyProgram(VkDevice Device, GProgram* Program)
+{
+	vkDestroyDescriptorUpdateTemplate(Device, Program->UpdateTemplate, nullptr);
+	vkDestroyPipelineLayout(Device, Program->Layout, nullptr);
+	vkDestroyDescriptorSetLayout(Device, Program->SetLayout, nullptr);
 }
 
 VkPipeline CreateGraphicsPipeline(VkDevice         Device,
