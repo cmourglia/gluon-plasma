@@ -2,9 +2,21 @@
 
 #include "gvulkan.h"
 
+#include <initializer_list>
+
 struct GShader
 {
-	VkShaderModule Module;
+	VkShaderModule        Module;
+	VkShaderStageFlagBits Stage;
+
+	VkDescriptorType ResourceTypes[32];
+	u32              ResourceMask;
+
+	u32 LocalSizeX;
+	u32 LocalSizeY;
+	u32 LocalSizeZ;
+
+	bool UsesPushConstants;
 };
 
 GShader LoadShader(VkDevice Device, const char* Filename);
@@ -18,14 +30,12 @@ struct GProgram
 	VkDescriptorUpdateTemplate UpdateTemplate;
 };
 
-GProgram CreateProgram(VkDevice Device, VkPipelineBindPoint BindPoint, const GShader& VertexShader, const GShader& FragmentShader);
+using GShaders = std::initializer_list<const GShader*>;
+
+GProgram CreateProgram(VkDevice Device, VkPipelineBindPoint BindPoint, GShaders Shaders);
 void     DestroyProgram(VkDevice Device, GProgram* Program);
 
-VkPipeline CreateGraphicsPipeline(VkDevice         Device,
-                                  VkRenderPass     RenderPass,
-                                  VkPipelineLayout Layout,
-                                  const GShader&   VertexShader,
-                                  const GShader&   FragmentShader);
+VkPipeline CreateGraphicsPipeline(VkDevice Device, VkRenderPass RenderPass, VkPipelineLayout Layout, GShaders Shaders);
 
 union GDescriptorInfo {
 	VkDescriptorImageInfo  Image;

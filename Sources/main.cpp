@@ -102,7 +102,7 @@ private:
 
 			vkCmdBindPipeline(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, Pipeline);
 
-			GDescriptorInfo Descriptors[] = {VertexBuffer.Buffer};
+			GDescriptorInfo Descriptors[] = {VertexBuffer.Buffer, ColorBuffer.Buffer};
 			vkCmdPushDescriptorSetWithTemplateKHR(CommandBuffer, MeshProgram.UpdateTemplate, MeshProgram.Layout, 0, Descriptors);
 
 			vkCmdBindIndexBuffer(CommandBuffer, IndexBuffer.Buffer, 0, VK_INDEX_TYPE_UINT32);
@@ -207,9 +207,9 @@ private:
 
 		RenderPass = CreateRenderPass(Device, Swapchain.Format);
 
-		MeshProgram = CreateProgram(Device, VK_PIPELINE_BIND_POINT_GRAPHICS, VertexShader, FragmentShader);
+		MeshProgram = CreateProgram(Device, VK_PIPELINE_BIND_POINT_GRAPHICS, {&VertexShader, &FragmentShader});
 
-		Pipeline = CreateGraphicsPipeline(Device, RenderPass, MeshProgram.Layout, VertexShader, FragmentShader);
+		Pipeline = CreateGraphicsPipeline(Device, RenderPass, MeshProgram.Layout, {&VertexShader, &FragmentShader});
 
 		DestroyShader(Device, &VertexShader);
 		DestroyShader(Device, &FragmentShader);
@@ -227,15 +227,20 @@ private:
 		VkPhysicalDeviceMemoryProperties MemoryProperties;
 		vkGetPhysicalDeviceMemoryProperties(PhysicalDevice, &MemoryProperties);
 
+		float Color[4] = {0.2f, 0.6f, 0.4f, 1.0f};
+
 		VertexBuffer = CreateBuffer(Device, MemoryProperties, Mesh.Vertices.size() * sizeof(GVertex), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		ColorBuffer  = CreateBuffer(Device, MemoryProperties, sizeof(Color), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		IndexBuffer  = CreateBuffer(Device, MemoryProperties, Mesh.Indices.size() * sizeof(u32), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
 		memcpy(VertexBuffer.Data, Mesh.Vertices.data(), Mesh.Vertices.size() * sizeof(GVertex));
+		memcpy(ColorBuffer.Data, Color, sizeof(Color));
 		memcpy(IndexBuffer.Data, Mesh.Indices.data(), Mesh.Indices.size() * sizeof(u32));
 	}
 
 	void Cleanup()
 	{
+		DestroyBuffer(Device, &ColorBuffer);
 		DestroyBuffer(Device, &VertexBuffer);
 		DestroyBuffer(Device, &IndexBuffer);
 
@@ -433,6 +438,7 @@ private:
 	VkCommandBuffer CommandBuffer;
 
 	GBuffer VertexBuffer;
+	GBuffer ColorBuffer;
 	GBuffer IndexBuffer;
 };
 

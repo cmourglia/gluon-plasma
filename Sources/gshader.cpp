@@ -1,9 +1,197 @@
 #include "gshader.h"
 
+#include <loguru.hpp>
+
+#include <vulkan/spirv.h>
+
 #include <stdlib.h>
 #include <stdio.h>
 
 #include <vector>
+
+struct GIdentifier
+{
+	u32 Opcode;
+	u32 TypeID;
+	u32 StorageClass;
+	u32 Binding;
+	u32 Set;
+};
+
+static VkShaderStageFlagBits GetShaderStage(SpvExecutionModel ExecutionModel)
+{
+	switch (ExecutionModel)
+	{
+		case SpvExecutionModelVertex:
+			return VK_SHADER_STAGE_VERTEX_BIT;
+		case SpvExecutionModelFragment:
+			return VK_SHADER_STAGE_FRAGMENT_BIT;
+		case SpvExecutionModelGLCompute:
+			return VK_SHADER_STAGE_COMPUTE_BIT;
+		default:
+			assert(!"Unsupported shader type");
+	}
+
+	return (VkShaderStageFlagBits)0;
+}
+
+static void ParseShader(GShader* Shader, const u32* Code, u64 CodeSize)
+{
+	assert(Code[0] == SpvMagicNumber);
+
+	u32 IdentifierBound = Code[3];
+
+	std::vector<GIdentifier> Identifiers(IdentifierBound);
+
+	const u32* Ptr = Code + 5;
+
+	while (Ptr != Code + CodeSize)
+	{
+		u16 Opcode    = (u16)Ptr[0];
+		u16 WordCount = (u16)(Ptr[0] >> 16);
+
+		switch (Opcode)
+		{
+			case SpvOpEntryPoint:
+			{
+				assert(WordCount >= 2);
+				Shader->Stage = GetShaderStage((SpvExecutionModel)Ptr[1]);
+			}
+			break;
+
+			case SpvOpExecutionMode:
+			{
+				assert(WordCount >= 3);
+				u32 Mode = Ptr[2];
+
+				switch (Mode)
+				{
+					case SpvExecutionModeLocalSize:
+						assert(WordCount == 6);
+						Shader->LocalSizeX = Ptr[3];
+						Shader->LocalSizeY = Ptr[4];
+						Shader->LocalSizeZ = Ptr[5];
+				}
+			}
+			break;
+
+			case SpvOpDecorate:
+			{
+				assert(WordCount >= 3);
+
+				u32 Identifier = Ptr[1];
+				assert(Identifier < IdentifierBound);
+
+				switch (Ptr[2])
+				{
+					case SpvDecorationDescriptorSet:
+						assert(WordCount == 4);
+						Identifiers[Identifier].Set = Ptr[3];
+						break;
+					case SpvDecorationBinding:
+						assert(WordCount == 4);
+						Identifiers[Identifier].Binding = Ptr[3];
+						break;
+				}
+			}
+			break;
+
+			case SpvOpTypeStruct:
+			case SpvOpTypeImage:
+			case SpvOpTypeSampler:
+			case SpvOpTypeSampledImage:
+			{
+				assert(WordCount >= 2);
+
+				u32 Identifier = Ptr[1];
+				assert(Identifier < IdentifierBound);
+
+				assert(Identifiers[Identifier].Opcode == 0);
+				Identifiers[Identifier].Opcode = Opcode;
+			}
+			break;
+
+			case SpvOpTypePointer:
+			{
+				assert(WordCount == 4);
+
+				u32 Identifier = Ptr[1];
+				assert(Identifier < IdentifierBound);
+
+				assert(Identifiers[Identifier].Opcode == 0);
+				Identifiers[Identifier].Opcode       = Opcode;
+				Identifiers[Identifier].TypeID       = Ptr[3];
+				Identifiers[Identifier].StorageClass = Ptr[2];
+			}
+			break;
+
+			case SpvOpVariable:
+			{
+				assert(WordCount >= 4);
+
+				u32 Identifier = Ptr[2];
+				assert(Identifier < IdentifierBound);
+
+				assert(Identifiers[Identifier].Opcode == 0);
+				Identifiers[Identifier].Opcode       = Opcode;
+				Identifiers[Identifier].TypeID       = Ptr[1];
+				Identifiers[Identifier].StorageClass = Ptr[3];
+			}
+			break;
+		}
+
+		assert(Ptr + WordCount <= Code + CodeSize);
+		Ptr += WordCount;
+	}
+
+	for (GIdentifier& Identifier : Identifiers)
+	{
+		if (Identifier.Opcode == SpvOpVariable &&
+		    (Identifier.StorageClass == SpvStorageClassUniform || Identifier.StorageClass == SpvStorageClassUniformConstant ||
+		     Identifier.StorageClass == SpvStorageClassStorageBuffer))
+		{
+			assert(Identifier.Set == 0);
+			assert(Identifier.Binding < 32);
+			assert(Identifiers[Identifier.TypeID].Opcode == SpvOpTypePointer);
+
+			assert((Shader->ResourceMask & (1 << Identifier.Binding)) == 0);
+
+			u32 TypeKind = Identifiers[Identifiers[Identifier.TypeID].TypeID].Opcode;
+
+			switch (TypeKind)
+			{
+				case SpvOpTypeStruct:
+					Shader->ResourceTypes[Identifier.Binding] = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+					Shader->ResourceMask |= 1 << Identifier.Binding;
+					break;
+
+				case SpvOpTypeImage:
+					Shader->ResourceTypes[Identifier.Binding] = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+					Shader->ResourceMask |= 1 << Identifier.Binding;
+					break;
+
+				case SpvOpTypeSampler:
+					Shader->ResourceTypes[Identifier.Binding] = VK_DESCRIPTOR_TYPE_SAMPLER;
+					Shader->ResourceMask |= 1 << Identifier.Binding;
+					break;
+
+				case SpvOpTypeSampledImage:
+					Shader->ResourceTypes[Identifier.Binding] = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+					Shader->ResourceMask |= 1 << Identifier.Binding;
+					break;
+
+				default:
+					assert(!"Unknown resource type");
+			}
+		}
+
+		if (Identifier.Opcode == SpvOpVariable && Identifier.StorageClass == SpvStorageClassPushConstant)
+		{
+			assert(!"Shader push constants are not handled yet");
+			Shader->UsesPushConstants = true;
+		}
+	}
+}
 
 GShader LoadShader(VkDevice Device, const char* Filename)
 {
@@ -22,7 +210,7 @@ GShader LoadShader(VkDevice Device, const char* Filename)
 
 	u8*       Bytes = (u8*)malloc(Size);
 	const u64 Read  = fread(Bytes, 1, Size, File);
-	assert(Read == Size);
+	assert(Read == Size && Size % 4 == 0);
 
 	fclose(File);
 
@@ -31,6 +219,8 @@ GShader LoadShader(VkDevice Device, const char* Filename)
 	CreateInfo.pCode                    = (u32*)Bytes;
 
 	VK_CHECK(vkCreateShaderModule(Device, &CreateInfo, nullptr, &Shader.Module));
+
+	ParseShader(&Shader, (u32*)Bytes, Size / 4);
 
 	free(Bytes);
 
@@ -42,18 +232,60 @@ void DestroyShader(VkDevice Device, GShader* Shader)
 	vkDestroyShaderModule(Device, Shader->Module, nullptr);
 }
 
-static VkDescriptorSetLayout CreateSetLayout(VkDevice Device)
+static u32 GetShaderResources(GShaders Shaders, VkDescriptorType (&ResourceTypes)[32])
+{
+	u32 ResourceMask = 0;
+
+	for (const GShader* Shader : Shaders)
+	{
+		for (u32 BindingIndex = 0; BindingIndex < 32; ++BindingIndex)
+		{
+			if (Shader->ResourceMask & (1 << BindingIndex))
+			{
+				if (ResourceMask & (1 << BindingIndex))
+				{
+					assert(ResourceTypes[BindingIndex] == Shader->ResourceTypes[BindingIndex]);
+				}
+				else
+				{
+					ResourceTypes[BindingIndex] = Shader->ResourceTypes[BindingIndex];
+					ResourceMask |= 1 << BindingIndex;
+				}
+			}
+		}
+	}
+
+	return ResourceMask;
+}
+
+static VkDescriptorSetLayout CreateSetLayout(VkDevice Device, GShaders Shaders)
 {
 	std::vector<VkDescriptorSetLayoutBinding> SetBindings;
 
-	{
-		VkDescriptorSetLayoutBinding SetBinding;
-		SetBinding.binding         = 0;
-		SetBinding.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		SetBinding.descriptorCount = 1;
-		SetBinding.stageFlags      = VK_SHADER_STAGE_VERTEX_BIT;
+	VkDescriptorType ResourceTypes[32] = {};
+	u32              ResourceMask      = GetShaderResources(Shaders, ResourceTypes);
 
-		SetBindings.push_back(SetBinding);
+	for (u32 BindingIndex = 0; BindingIndex < 32; ++BindingIndex)
+	{
+		if (ResourceMask & (1 << BindingIndex))
+		{
+			VkDescriptorSetLayoutBinding Binding;
+			Binding.binding         = BindingIndex;
+			Binding.descriptorType  = ResourceTypes[BindingIndex];
+			Binding.descriptorCount = 1;
+
+			Binding.stageFlags = 0;
+
+			for (const GShader* Shader : Shaders)
+			{
+				if (Shader->ResourceMask & (1 << BindingIndex))
+				{
+					Binding.stageFlags |= Shader->Stage;
+				}
+			}
+
+			SetBindings.push_back(Binding);
+		}
 	}
 
 	VkDescriptorSetLayoutCreateInfo CreateInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
@@ -67,10 +299,7 @@ static VkDescriptorSetLayout CreateSetLayout(VkDevice Device)
 	return SetLayout;
 }
 
-static VkPipelineLayout CreatePipelineLayout(VkDevice              Device,
-                                             VkDescriptorSetLayout SetLayout,
-                                             const GShader&        VertexShader,
-                                             const GShader&        FragmentShader)
+static VkPipelineLayout CreatePipelineLayout(VkDevice Device, VkDescriptorSetLayout SetLayout, GShaders Shaders)
 {
 	VkPipelineLayoutCreateInfo LayoutCreateInfo = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
 	LayoutCreateInfo.setLayoutCount             = 1;
@@ -79,29 +308,34 @@ static VkPipelineLayout CreatePipelineLayout(VkDevice              Device,
 	VkPipelineLayout Layout;
 	VK_CHECK(vkCreatePipelineLayout(Device, &LayoutCreateInfo, nullptr, &Layout));
 
-	// TODO: We need to destroy this at some point
-	// vkDestroyDescriptorSetLayout(Device, SetLayout, nullptr);
-
 	return Layout;
 }
 
 static VkDescriptorUpdateTemplate CreateUpdateTemplate(VkDevice              Device,
                                                        VkPipelineBindPoint   BindPoint,
                                                        VkDescriptorSetLayout SetLayout,
-                                                       VkPipelineLayout      Layout)
+                                                       VkPipelineLayout      Layout,
+                                                       GShaders              Shaders)
 {
 	std::vector<VkDescriptorUpdateTemplateEntry> Entries;
 
-	{
-		VkDescriptorUpdateTemplateEntry Entry;
-		Entry.dstBinding      = 0;
-		Entry.dstArrayElement = 0;
-		Entry.descriptorCount = 1;
-		Entry.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		Entry.offset          = sizeof(GDescriptorInfo) * 0;
-		Entry.stride          = sizeof(GDescriptorInfo);
+	VkDescriptorType ResourceTypes[32] = {};
+	u32              ResourceMask      = GetShaderResources(Shaders, ResourceTypes);
 
-		Entries.push_back(Entry);
+	for (u32 BindingIndex = 0; BindingIndex < 32; ++BindingIndex)
+	{
+		if (ResourceMask & (1 << BindingIndex))
+		{
+			VkDescriptorUpdateTemplateEntry Entry;
+			Entry.dstBinding      = BindingIndex;
+			Entry.dstArrayElement = 0;
+			Entry.descriptorCount = 1;
+			Entry.descriptorType  = ResourceTypes[BindingIndex];
+			Entry.offset          = sizeof(GDescriptorInfo) * BindingIndex;
+			Entry.stride          = sizeof(GDescriptorInfo);
+
+			Entries.push_back(Entry);
+		}
 	}
 
 	VkDescriptorUpdateTemplateCreateInfo CreateInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO};
@@ -115,20 +349,17 @@ static VkDescriptorUpdateTemplate CreateUpdateTemplate(VkDevice              Dev
 	VkDescriptorUpdateTemplate UpdateTemplate;
 	VK_CHECK(vkCreateDescriptorUpdateTemplate(Device, &CreateInfo, nullptr, &UpdateTemplate));
 
-	// TODO: We need to destroy this at some point
-	// vkDestroyDescriptorSetLayout(Device, SetLayout, nullptr);
-
 	return UpdateTemplate;
 }
 
-GProgram CreateProgram(VkDevice Device, VkPipelineBindPoint BindPoint, const GShader& VertexShader, const GShader& FragmentShader)
+GProgram CreateProgram(VkDevice Device, VkPipelineBindPoint BindPoint, GShaders Shaders)
 {
 	GProgram Program = {};
 
 	Program.BindPoint      = BindPoint;
-	Program.SetLayout      = CreateSetLayout(Device);
-	Program.Layout         = CreatePipelineLayout(Device, Program.SetLayout, VertexShader, FragmentShader);
-	Program.UpdateTemplate = CreateUpdateTemplate(Device, BindPoint, Program.SetLayout, Program.Layout);
+	Program.SetLayout      = CreateSetLayout(Device, Shaders);
+	Program.Layout         = CreatePipelineLayout(Device, Program.SetLayout, Shaders);
+	Program.UpdateTemplate = CreateUpdateTemplate(Device, BindPoint, Program.SetLayout, Program.Layout, Shaders);
 
 	return Program;
 }
@@ -140,28 +371,25 @@ void DestroyProgram(VkDevice Device, GProgram* Program)
 	vkDestroyDescriptorSetLayout(Device, Program->SetLayout, nullptr);
 }
 
-VkPipeline CreateGraphicsPipeline(VkDevice         Device,
-                                  VkRenderPass     RenderPass,
-                                  VkPipelineLayout Layout,
-                                  const GShader&   VertexShader,
-                                  const GShader&   FragmentShader)
+VkPipeline CreateGraphicsPipeline(VkDevice Device, VkRenderPass RenderPass, VkPipelineLayout Layout, GShaders Shaders)
 {
 	VkGraphicsPipelineCreateInfo CreateInfo = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
 
-	VkPipelineShaderStageCreateInfo Stages[2] = {};
+	std::vector<VkPipelineShaderStageCreateInfo> Stages;
 
-	Stages[0].sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	Stages[0].stage  = VK_SHADER_STAGE_VERTEX_BIT;
-	Stages[0].module = VertexShader.Module;
-	Stages[0].pName  = "main";
+	for (const GShader* Shader : Shaders)
+	{
+		VkPipelineShaderStageCreateInfo Stage = {};
+		Stage.sType                           = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		Stage.stage                           = Shader->Stage;
+		Stage.module                          = Shader->Module;
+		Stage.pName                           = "main";
 
-	Stages[1].sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	Stages[1].stage  = VK_SHADER_STAGE_FRAGMENT_BIT;
-	Stages[1].module = FragmentShader.Module;
-	Stages[1].pName  = "main";
+		Stages.push_back(Stage);
+	}
 
-	CreateInfo.stageCount = ARRAY_SIZE(Stages);
-	CreateInfo.pStages    = Stages;
+	CreateInfo.stageCount = (u32)Stages.size();
+	CreateInfo.pStages    = Stages.data();
 
 	VkPipelineVertexInputStateCreateInfo VertexInputState = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
 	CreateInfo.pVertexInputState                          = &VertexInputState;
