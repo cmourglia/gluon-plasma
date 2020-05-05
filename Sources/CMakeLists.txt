@@ -18,19 +18,18 @@ foreach(SHADER ${IN_SHADERS})
 endforeach()
 
 add_executable(${PROJECT_NAME}
-	main.cpp gvulkan.cpp gswapchain.cpp gbuffer.cpp gshader.cpp
-	gvulkan.h gswapchain.h gbuffer.h gshader.h
+	main.cpp gvulkan.cpp gswapchain.cpp gbuffer.cpp gshader.cpp gmesh_loader.cpp
+	gvulkan.h gswapchain.h gbuffer.h gshader.h gmesh_loader.h
 	${THIRD_PARTY_DIR}/volk/volk.c
 	${THIRD_PARTY_DIR}/loguru/loguru.cpp
 	tinygltf.cpp
 	${OUT_SHADERS}
 )
 
-target_link_libraries(${PROJECT_NAME} PRIVATE glm::glm glfw::glfw)
+target_link_libraries(${PROJECT_NAME} PRIVATE glm::glm glfw::glfw assimp)
 target_include_directories(${PROJECT_NAME} PRIVATE
 	${Vulkan_INCLUDE_DIRS}
 	${THIRD_PARTY_DIR}/loguru
-	${THIRD_PARTY_DIR}/volk
-	${THIRD_PARTY_DIR}/tinygltf)
+	${THIRD_PARTY_DIR}/volk)
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE $<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>)

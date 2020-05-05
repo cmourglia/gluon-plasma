@@ -10,9 +10,6 @@
 [submodule "ThirdParty/volk"]
 	path = ThirdParty/volk
 	url = https://github.com/zeux/volk
-[submodule "ThirdParty/tinygltf"]
-	path = ThirdParty/tinygltf
-	url = https://github.com/syoyo/tinygltf
 [submodule "ThirdParty/VulkanUtils"]
 	path = ThirdParty/VulkanUtils
 	url = https://github.com/cmourglia/VulkanUtils

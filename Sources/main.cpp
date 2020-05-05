@@ -2,11 +2,11 @@
 #include "gswapchain.h"
 #include "gbuffer.h"
 #include "gshader.h"
+#include "gmesh_loader.h"
 
 #include <glfw/glfw3.h>
 #include <glm/glm.hpp>
 #include <loguru.hpp>
-#include <tiny_gltf.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -14,19 +14,6 @@
 
 #include <vector>
 #include <algorithm>
-
-struct GVertex
-{
-	f32 Position[3];
-	f32 Normal[3];
-	f32 Texcoord[2];
-};
-
-struct GMesh
-{
-	std::vector<GVertex> Vertices;
-	std::vector<u32>     Indices;
-};
 
 class GHelloTriangleApplication
 {
@@ -42,7 +29,7 @@ private:
 	void Init()
 	{
 		InitWindow();
-		LoadMesh("Assets/Meshes/Duck/Duck.gltf");
+		LoadMesh("Assets/Meshes/Cubes/Cubes.fbx", &Model);
 		InitVulkan();
 	}
 
@@ -106,7 +93,11 @@ private:
 			vkCmdPushDescriptorSetWithTemplateKHR(CommandBuffer, MeshProgram.UpdateTemplate, MeshProgram.Layout, 0, Descriptors);
 
 			vkCmdBindIndexBuffer(CommandBuffer, IndexBuffer.Buffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(CommandBuffer, (u32)Mesh.Indices.size(), 1, 0, 0, 0);
+
+			for (const GMesh& Mesh : Model.Meshes)
+			{
+				vkCmdDrawIndexed(CommandBuffer, Mesh.IndexCount, 1, Mesh.BaseIndex, 0, 0);
+			}
 
 			vkCmdEndRenderPass(CommandBuffer);
 
@@ -229,13 +220,13 @@ private:
 
 		float Color[4] = {0.2f, 0.6f, 0.4f, 1.0f};
 
-		VertexBuffer = CreateBuffer(Device, MemoryProperties, Mesh.Vertices.size() * sizeof(GVertex), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		VertexBuffer = CreateBuffer(Device, MemoryProperties, Model.Vertices.size() * sizeof(GVertex), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		ColorBuffer  = CreateBuffer(Device, MemoryProperties, sizeof(Color), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		IndexBuffer  = CreateBuffer(Device, MemoryProperties, Mesh.Indices.size() * sizeof(u32), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+		IndexBuffer  = CreateBuffer(Device, MemoryProperties, Model.Indices.size() * sizeof(u32), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
-		memcpy(VertexBuffer.Data, Mesh.Vertices.data(), Mesh.Vertices.size() * sizeof(GVertex));
+		memcpy(VertexBuffer.Data, Model.Vertices.data(), Model.Vertices.size() * sizeof(GVertex));
 		memcpy(ColorBuffer.Data, Color, sizeof(Color));
-		memcpy(IndexBuffer.Data, Mesh.Indices.data(), Mesh.Indices.size() * sizeof(u32));
+		memcpy(IndexBuffer.Data, Model.Indices.data(), Model.Indices.size() * sizeof(u32));
 	}
 
 	void Cleanup()
@@ -291,132 +282,10 @@ private:
 #endif
 	}
 
-	void LoadMesh(const char* Filename)
-	{
-		tinygltf::Model    Model;
-		tinygltf::TinyGLTF Loader;
-
-		std::string Error;
-		std::string Warning;
-
-		bool Result = Loader.LoadASCIIFromFile(&Model, &Error, &Warning, Filename);
-
-		if (!Warning.empty())
-		{
-			LOG_F(WARNING, "Loader: %s", Warning.c_str());
-		}
-
-		if (!Error.empty())
-		{
-			LOG_F(ERROR, "Loader: %s", Error.c_str());
-		}
-
-		assert(Result);
-
-		for (const auto& GLTFMesh : Model.meshes)
-		{
-			for (const auto& Primitive : GLTFMesh.primitives)
-			{
-				{
-					tinygltf::Accessor   IndicesAccessor = Model.accessors[Primitive.indices];
-					tinygltf::BufferView BufferView      = Model.bufferViews[IndicesAccessor.bufferView];
-					tinygltf::Buffer     Buffer          = Model.buffers[BufferView.buffer];
-
-					const u8* DataPtr    = Buffer.data.data() + BufferView.byteOffset + IndicesAccessor.byteOffset;
-					const i32 ByteStride = IndicesAccessor.ByteStride(BufferView);
-					const u64 Count      = IndicesAccessor.count;
-
-					switch (IndicesAccessor.componentType)
-					{
-						case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
-						{
-							const u16* Ptr = (u16*)DataPtr;
-							for (u64 Index = 0; Index < Count; ++Index)
-							{
-								Mesh.Indices.push_back(*(Ptr++));
-							}
-						}
-						break;
-
-						case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
-						{
-							const u32* Ptr = (u32*)DataPtr;
-							for (u64 Index = 0; Index < Count; ++Index)
-							{
-								Mesh.Indices.push_back(*(Ptr++));
-							}
-						}
-						break;
-					}
-				}
-
-				assert(Primitive.mode == TINYGLTF_MODE_TRIANGLES);
-				for (const auto& Attribute : Primitive.attributes)
-				{
-					const auto& AttributeAccessor = Model.accessors[Attribute.second];
-					const auto& BufferView        = Model.bufferViews[AttributeAccessor.bufferView];
-					const auto& Buffer            = Model.buffers[BufferView.buffer];
-
-					const u8* DataPtr    = Buffer.data.data() + BufferView.byteOffset + AttributeAccessor.byteOffset;
-					const i32 ByteStride = AttributeAccessor.ByteStride(BufferView);
-					const u64 Count      = AttributeAccessor.count;
-
-					if (Mesh.Vertices.empty())
-					{
-						Mesh.Vertices.resize(Count);
-					}
-
-					if (Attribute.first == "POSITION")
-					{
-						assert(AttributeAccessor.type == TINYGLTF_TYPE_VEC3);
-						assert(AttributeAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
-
-						const f32* Ptr = (f32*)DataPtr;
-						for (u64 Index = 0; Index < Count; ++Index)
-						{
-							Mesh.Vertices[Index].Position[0] = *(Ptr++);
-							Mesh.Vertices[Index].Position[1] = *(Ptr++);
-							Mesh.Vertices[Index].Position[2] = *(Ptr++);
-						}
-					}
-					else if (Attribute.first == "NORMAL")
-					{
-						assert(AttributeAccessor.type == TINYGLTF_TYPE_VEC3);
-						assert(AttributeAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
-
-						const f32* Ptr = (f32*)DataPtr;
-						for (u64 Index = 0; Index < Count; ++Index)
-						{
-							Mesh.Vertices[Index].Normal[0] = *(Ptr++);
-							Mesh.Vertices[Index].Normal[1] = *(Ptr++);
-							Mesh.Vertices[Index].Normal[2] = *(Ptr++);
-						}
-					}
-					else if (Attribute.first == "TEXCOORD_0")
-					{
-						assert(AttributeAccessor.type == TINYGLTF_TYPE_VEC2);
-						assert(AttributeAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT);
-
-						const f32* Ptr = (f32*)DataPtr;
-						for (u64 Index = 0; Index < Count; ++Index)
-						{
-							Mesh.Vertices[Index].Texcoord[0] = *(Ptr++);
-							Mesh.Vertices[Index].Texcoord[1] = *(Ptr++);
-						}
-					}
-					else
-					{
-						LOG_F(WARNING, "%s is not handled", Attribute.first.c_str());
-					}
-				}
-			}
-		}
-	}
-
 private:
 	GLFWwindow* Window;
 
-	GMesh Mesh;
+	GModel Model;
 
 	VkInstance               Instance;
 	VkDebugUtilsMessengerEXT DebugMessenger;
