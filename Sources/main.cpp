@@ -6,6 +6,7 @@
 
 #include <glfw/glfw3.h>
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <loguru.hpp>
 
 #include <stdlib.h>
@@ -93,14 +94,25 @@ private:
 
 			vkCmdBindPipeline(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, Pipeline);
 
-			GDescriptorInfo Descriptors[] = {VertexBuffer.Buffer, ColorBuffer.Buffer};
-			vkCmdPushDescriptorSetWithTemplateKHR(CommandBuffer, MeshProgram.UpdateTemplate, MeshProgram.Layout, 0, Descriptors);
-
 			vkCmdBindIndexBuffer(CommandBuffer, IndexBuffer.Buffer, 0, VK_INDEX_TYPE_UINT32);
 
-			for (const GMesh& Mesh : Model.Meshes)
+			for (u32 MeshIndex = 0; MeshIndex < Model.Meshes.size(); ++MeshIndex)
 			{
-				vkCmdDrawIndexed(CommandBuffer, Mesh.IndexCount, 1, Mesh.BaseIndex, 0, 0);
+				const GMesh& Mesh = Model.Meshes[MeshIndex];
+
+				glm::mat4 Data[3];
+				Data[0] = Mesh.ModelMatrix;
+				Data[1] = glm::lookAt(glm::vec3(5.0f, 2.0f, -10.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+				Data[2] = glm::perspective(glm::quarter_pi<f32>(), 1024.f / 768.f, 0.1f, 100.0f);
+
+				memcpy(TransformUniformBuffers[MeshIndex].Data, Data, 3 * sizeof(glm::mat4));
+
+				VkWriteDescriptorSet WriteDescriptorSets[2] = {};
+
+				GDescriptorInfo Descriptors[] = {{VertexBuffer.Buffer}, {TransformUniformBuffers[MeshIndex].Buffer}};
+				vkCmdPushDescriptorSetWithTemplateKHR(CommandBuffer, MeshProgram.UpdateTemplate, MeshProgram.Layout, 0, Descriptors);
+
+				vkCmdDrawIndexed(CommandBuffer, Mesh.IndexCount, 1, Mesh.BaseIndex, Mesh.BaseVertex, 0);
 			}
 
 			vkCmdEndRenderPass(CommandBuffer);
@@ -227,20 +239,25 @@ private:
 		VkPhysicalDeviceMemoryProperties MemoryProperties;
 		vkGetPhysicalDeviceMemoryProperties(PhysicalDevice, &MemoryProperties);
 
-		float Color[4] = {0.2f, 0.6f, 0.4f, 1.0f};
-
 		VertexBuffer = CreateBuffer(Device, MemoryProperties, Model.Vertices.size() * sizeof(GVertex), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		ColorBuffer  = CreateBuffer(Device, MemoryProperties, sizeof(Color), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		IndexBuffer  = CreateBuffer(Device, MemoryProperties, Model.Indices.size() * sizeof(u32), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
+		TransformUniformBuffers.resize(Model.Meshes.size());
+		for (auto&& Buffer : TransformUniformBuffers)
+		{
+			Buffer = CreateBuffer(Device, MemoryProperties, 3 * sizeof(glm::mat4), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		}
+
 		memcpy(VertexBuffer.Data, Model.Vertices.data(), Model.Vertices.size() * sizeof(GVertex));
-		memcpy(ColorBuffer.Data, Color, sizeof(Color));
 		memcpy(IndexBuffer.Data, Model.Indices.data(), Model.Indices.size() * sizeof(u32));
 	}
 
 	void Cleanup()
 	{
-		DestroyBuffer(Device, &ColorBuffer);
+		for (auto&& Buffer : TransformUniformBuffers)
+		{
+			DestroyBuffer(Device, &Buffer);
+		}
 		DestroyBuffer(Device, &VertexBuffer);
 		DestroyBuffer(Device, &IndexBuffer);
 
@@ -315,9 +332,9 @@ private:
 	VkCommandPool   CommandPool;
 	VkCommandBuffer CommandBuffer;
 
-	GBuffer VertexBuffer;
-	GBuffer ColorBuffer;
-	GBuffer IndexBuffer;
+	GBuffer              VertexBuffer;
+	GBuffer              IndexBuffer;
+	std::vector<GBuffer> TransformUniformBuffers;
 
 public:
 	void MouseMoved(f64 X, f64 Y)

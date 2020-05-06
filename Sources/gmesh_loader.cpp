@@ -12,6 +12,8 @@ static void ProcessMesh(aiMesh* SrcMesh, const aiScene* Scene, GModel* Model)
 
 	const bool HasTexcoords = (SrcMesh->mTextureCoords[0] != nullptr);
 
+	const u32 BaseVertex = (u32)Model->Vertices.size();
+
 	for (u32 Index = 0; Index < SrcMesh->mNumVertices; ++Index)
 	{
 		GVertex Vertex;
@@ -45,6 +47,7 @@ static void ProcessMesh(aiMesh* SrcMesh, const aiScene* Scene, GModel* Model)
 	const u32 IndexCount = (u32)Model->Indices.size() - BaseIndex;
 
 	GMesh Mesh;
+	Mesh.BaseVertex = BaseVertex;
 	Mesh.BaseIndex  = BaseIndex;
 	Mesh.IndexCount = IndexCount;
 
@@ -54,7 +57,6 @@ static void ProcessMesh(aiMesh* SrcMesh, const aiScene* Scene, GModel* Model)
 static void ProcessNode(aiNode* Node, const aiScene* Scene, GModel* Model, glm::mat4 CurrentTransform)
 {
 	// clang-format off
-	// FIXME: Not tested, might need a transpose
 	const glm::mat4 NodeTransform(Node->mTransformation.a1, Node->mTransformation.b1, Node->mTransformation.c1, Node->mTransformation.d1,
 	                              Node->mTransformation.a2, Node->mTransformation.b2, Node->mTransformation.c2, Node->mTransformation.d2,
 	                              Node->mTransformation.a3, Node->mTransformation.b3, Node->mTransformation.c3, Node->mTransformation.d3,
@@ -62,7 +64,7 @@ static void ProcessNode(aiNode* Node, const aiScene* Scene, GModel* Model, glm::
 	// clang-format on
 
 	// FIXME: I think I will never remember multiplication order
-	const glm::mat4 Transform = CurrentTransform * NodeTransform;
+	const glm::mat4 Transform = NodeTransform * CurrentTransform;
 
 	for (u32 Index = 0; Index < Node->mNumMeshes; ++Index)
 	{

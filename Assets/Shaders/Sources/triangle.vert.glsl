@@ -7,24 +7,21 @@ struct GVertex
 	float TU, TV;
 };
 
-layout (binding = 0) readonly buffer b_Vertices
+layout (binding = 0) readonly buffer VertexBuffer
 {
 	GVertex Vertices[];
 };
 
+layout(binding = 1) uniform ObjectBuffer {
+    mat4 Model;
+    mat4 View;
+    mat4 Proj;
+} Transforms;
+
 layout (location = 0) out vec3 out_Color;
 
 void main() {
-	GVertex Vertex = Vertices[gl_VertexIndex];
-
-	vec3 Position = vec3(Vertex.PX, Vertex.PY, Vertex.PZ);
-	vec3 Normal = vec3(Vertex.NX, Vertex.NY, Vertex.NZ);
-	vec2 Texcoord = vec2(Vertex.TU, Vertex.TV);
-
-	Position = (Position * 0.01) + vec3(0, -0.5, 1);
-
-	gl_Position = vec4(Position, 1.0);
-
-	out_Color = Normal * 0.5 + 0.5;
-	out_Color = vec3(Texcoord, 0);
+	gl_Position = Transforms.Proj * Transforms.View * Transforms.Model * vec4(Vertices[gl_VertexIndex].PX, Vertices[gl_VertexIndex].PY, Vertices[gl_VertexIndex].PZ, 1.0);
+	out_Color = vec3(Vertices[gl_VertexIndex].NX, Vertices[gl_VertexIndex].NY, Vertices[gl_VertexIndex].NZ) * 0.5 + 0.5;
+	// out_Color = vec3(Texcoord, 0);
 }

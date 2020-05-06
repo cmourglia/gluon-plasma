@@ -16,6 +16,7 @@ struct GVertex
 struct GMesh
 {
 	u32 BaseIndex;
+	u32 BaseVertex;
 	u32 IndexCount;
 
 	glm::mat4 ModelMatrix;
