@@ -11,11 +11,12 @@
 
 struct GIdentifier
 {
-	u32 Opcode;
-	u32 TypeID;
-	u32 StorageClass;
-	u32 Binding;
-	u32 Set;
+	SpvOp           Opcode;
+	u32             TypeID;
+	SpvStorageClass StorageClass;
+	u32             Binding;
+	u32             Set;
+	SpvDecoration   BlockType;
 };
 
 static VkShaderStageFlagBits GetShaderStage(SpvExecutionModel ExecutionModel)
@@ -92,6 +93,11 @@ static void ParseShader(GShader* Shader, const u32* Code, u64 CodeSize)
 						assert(WordCount == 4);
 						Identifiers[Identifier].Binding = Ptr[3];
 						break;
+					case SpvDecorationBlock:
+					case SpvDecorationBufferBlock:
+						assert(WordCount == 3);
+						Identifiers[Identifier].BlockType = (SpvDecoration)Ptr[2];
+						break;
 				}
 			}
 			break;
@@ -107,7 +113,7 @@ static void ParseShader(GShader* Shader, const u32* Code, u64 CodeSize)
 				assert(Identifier < IdentifierBound);
 
 				assert(Identifiers[Identifier].Opcode == 0);
-				Identifiers[Identifier].Opcode = Opcode;
+				Identifiers[Identifier].Opcode = (SpvOp)Opcode;
 			}
 			break;
 
@@ -119,9 +125,9 @@ static void ParseShader(GShader* Shader, const u32* Code, u64 CodeSize)
 				assert(Identifier < IdentifierBound);
 
 				assert(Identifiers[Identifier].Opcode == 0);
-				Identifiers[Identifier].Opcode       = Opcode;
-				Identifiers[Identifier].TypeID       = Ptr[3];
-				Identifiers[Identifier].StorageClass = Ptr[2];
+				Identifiers[Identifier].Opcode       = (SpvOp)Opcode;
+				Identifiers[Identifier].TypeID       = (SpvImageFormat)Ptr[3];
+				Identifiers[Identifier].StorageClass = (SpvStorageClass)Ptr[2];
 			}
 			break;
 
@@ -133,9 +139,9 @@ static void ParseShader(GShader* Shader, const u32* Code, u64 CodeSize)
 				assert(Identifier < IdentifierBound);
 
 				assert(Identifiers[Identifier].Opcode == 0);
-				Identifiers[Identifier].Opcode       = Opcode;
-				Identifiers[Identifier].TypeID       = Ptr[1];
-				Identifiers[Identifier].StorageClass = Ptr[3];
+				Identifiers[Identifier].Opcode       = (SpvOp)Opcode;
+				Identifiers[Identifier].TypeID       = (SpvImageFormat)Ptr[1];
+				Identifiers[Identifier].StorageClass = (SpvStorageClass)Ptr[3];
 			}
 			break;
 		}
@@ -156,14 +162,29 @@ static void ParseShader(GShader* Shader, const u32* Code, u64 CodeSize)
 
 			assert((Shader->ResourceMask & (1 << Identifier.Binding)) == 0);
 
-			u32 TypeKind = Identifiers[Identifiers[Identifier.TypeID].TypeID].Opcode;
+			const u32 TypeKind  = Identifiers[Identifiers[Identifier.TypeID].TypeID].Opcode;
+			const u32 BlockType = Identifiers[Identifiers[Identifier.TypeID].TypeID].BlockType;
 
 			switch (TypeKind)
 			{
 				case SpvOpTypeStruct:
-					Shader->ResourceTypes[Identifier.Binding] = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+				{
+					assert(BlockType != 0);
+					if (SpvDecorationBlock == BlockType)
+					{
+						Shader->ResourceTypes[Identifier.Binding] = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+					}
+					else if (SpvDecorationBufferBlock == BlockType)
+					{
+						Shader->ResourceTypes[Identifier.Binding] = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+					}
+					else
+					{
+						assert(!"block type not handled");
+					}
 					Shader->ResourceMask |= 1 << Identifier.Binding;
-					break;
+				}
+				break;
 
 				case SpvOpTypeImage:
 					Shader->ResourceTypes[Identifier.Binding] = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
