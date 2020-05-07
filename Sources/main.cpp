@@ -1,6 +1,6 @@
 #include "gvulkan.h"
 #include "gswapchain.h"
-#include "gbuffer.h"
+#include "gresources.h"
 #include "gshader.h"
 #include "gmesh_loader.h"
 

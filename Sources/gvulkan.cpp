@@ -133,32 +133,10 @@ VkDevice CreateLogicalDevice(VkPhysicalDevice           PhysicalDevice,
 	return Device;
 }
 
-VkImageView CreateImageView(VkDevice Device, VkImage Image, VkFormat ImageFormat)
-{
-	VkImageViewCreateInfo CreateInfo           = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
-	CreateInfo.image                           = Image;
-	CreateInfo.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
-	CreateInfo.format                          = ImageFormat;
-	CreateInfo.components.r                    = VK_COMPONENT_SWIZZLE_IDENTITY;
-	CreateInfo.components.g                    = VK_COMPONENT_SWIZZLE_IDENTITY;
-	CreateInfo.components.b                    = VK_COMPONENT_SWIZZLE_IDENTITY;
-	CreateInfo.components.a                    = VK_COMPONENT_SWIZZLE_IDENTITY;
-	CreateInfo.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-	CreateInfo.subresourceRange.baseMipLevel   = 0;
-	CreateInfo.subresourceRange.levelCount     = 1;
-	CreateInfo.subresourceRange.baseArrayLayer = 0;
-	CreateInfo.subresourceRange.layerCount     = 1;
-
-	VkImageView ImageView;
-	VK_CHECK(vkCreateImageView(Device, &CreateInfo, nullptr, &ImageView));
-
-	return ImageView;
-}
-
-VkRenderPass CreateRenderPass(VkDevice Device, VkFormat Format)
+VkRenderPass CreateRenderPass(VkDevice Device, VkFormat ColorFormat, VkFormat DepthFormat)
 {
 	VkAttachmentDescription ColorAttachment = {};
-	ColorAttachment.format                  = Format;
+	ColorAttachment.format                  = ColorFormat;
 	ColorAttachment.samples                 = VK_SAMPLE_COUNT_1_BIT;
 	ColorAttachment.loadOp                  = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	ColorAttachment.storeOp                 = VK_ATTACHMENT_STORE_OP_STORE;
@@ -229,27 +207,6 @@ VkCommandPool CreateCommandPool(VkDevice Device, u32 FamilyIndex)
 	VK_CHECK(vkCreateCommandPool(Device, &CreateInfo, nullptr, &CommandPool));
 
 	return CommandPool;
-}
-
-VkImageMemoryBarrier ImageBarrier(VkImage       Image,
-                                  VkAccessFlags SrcAccessMask,
-                                  VkAccessFlags DstAccessMask,
-                                  VkImageLayout OldLayout,
-                                  VkImageLayout NewLayout)
-{
-	VkImageMemoryBarrier Barrier        = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-	Barrier.srcAccessMask               = SrcAccessMask;
-	Barrier.dstAccessMask               = DstAccessMask;
-	Barrier.oldLayout                   = OldLayout;
-	Barrier.newLayout                   = NewLayout;
-	Barrier.srcQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
-	Barrier.dstQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
-	Barrier.image                       = Image;
-	Barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	Barrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
-	Barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
-
-	return Barrier;
 }
 
 static GQueueFamilyIndices FindQueueFamilies(VkPhysicalDevice PhysicalDevice, VkSurfaceKHR Surface)

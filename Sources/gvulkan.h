@@ -31,8 +31,6 @@ VkDevice         CreateLogicalDevice(VkPhysicalDevice           PhysicalDevice,
 
 VkDebugUtilsMessengerEXT SetupDebugMessenger(VkInstance Instance);
 
-VkImageView CreateImageView(VkDevice Device, VkImage Image, VkFormat Format);
-
 bool CheckValidationLayerSupport(u32 ValidationLayerCount, const char** ValidationLayerNames);
 
 VkRenderPass CreateRenderPass(VkDevice Device, VkFormat Format);
@@ -43,8 +41,3 @@ VkSemaphore CreateSemaphore(VkDevice Device);
 
 VkCommandPool CreateCommandPool(VkDevice Device, u32 FamilyIndex);
 
-VkImageMemoryBarrier ImageBarrier(VkImage       Image,
-                                  VkAccessFlags SrcAccessFlags,
-                                  VkAccessFlags DstAccessFlags,
-                                  VkImageLayout OldLayout,
-                                  VkImageLayout NewLayout);

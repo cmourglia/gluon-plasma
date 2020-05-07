@@ -2,6 +2,7 @@
 
 #include "utils.h"
 #include "gvulkan.h"
+#include "gresources.h"
 
 #include <vector>
 

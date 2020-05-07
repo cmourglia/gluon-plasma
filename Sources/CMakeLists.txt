@@ -18,8 +18,8 @@ foreach(SHADER ${IN_SHADERS})
 endforeach()
 
 add_executable(${PROJECT_NAME}
-	main.cpp gvulkan.cpp gswapchain.cpp gbuffer.cpp gshader.cpp gmesh_loader.cpp
-	gvulkan.h gswapchain.h gbuffer.h gshader.h gmesh_loader.h
+	main.cpp gvulkan.cpp gswapchain.cpp gshader.cpp gresources.h gmesh_loader.cpp
+	gvulkan.h gswapchain.h gshader.h gresources.cpp gmesh_loader.h
 	${THIRD_PARTY_DIR}/volk/volk.c
 	${THIRD_PARTY_DIR}/loguru/loguru.cpp
 	${OUT_SHADERS}
