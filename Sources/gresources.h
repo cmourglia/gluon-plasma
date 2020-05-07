@@ -4,17 +4,17 @@
 
 struct GBuffer
 {
-	VkBuffer       Buffer;
-	VkDeviceMemory Memory;
-	void*          Data;
-	VkDeviceSize   Size;
+	VkBuffer       Buffer = VK_NULL_HANDLE;
+	VkDeviceMemory Memory = VK_NULL_HANDLE;
+	void*          Data   = nullptr;
+	VkDeviceSize   Size   = 0ull;
 };
 
 struct GImage
 {
-	VkImage        Image;
-	VkImageView    ImageView;
-	VkDeviceMemory Memory;
+	VkImage        Image     = VK_NULL_HANDLE;
+	VkImageView    ImageView = VK_NULL_HANDLE;
+	VkDeviceMemory Memory    = VK_NULL_HANDLE;
 };
 
 GBuffer CreateBuffer(VkDevice                                Device,
@@ -34,11 +34,12 @@ GImage CreateImage(VkDevice                                Device,
                    VkFormat                                Format,
                    VkImageUsageFlags                       Usage);
 
-VkImageMemoryBarrier ImageBarrier(VkImage       Image,
-                                  VkAccessFlags SrcAccessMask,
-                                  VkAccessFlags DstAccessMask,
-                                  VkImageLayout OldLayout,
-                                  VkImageLayout DstLayout);
+VkImageMemoryBarrier ImageBarrier(VkImage            Image,
+                                  VkAccessFlags      SrcAccessMask,
+                                  VkAccessFlags      DstAccessMask,
+                                  VkImageLayout      OldLayout,
+                                  VkImageLayout      DstLayout,
+                                  VkImageAspectFlags AspectMask = VK_IMAGE_ASPECT_COLOR_BIT);
 
 VkImageView CreateImageView(VkDevice Device, VkImage Image, VkFormat Format, u32 MipLevel = 0, u32 LevelCount = 1);
 

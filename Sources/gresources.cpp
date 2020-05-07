@@ -57,11 +57,12 @@ void DestroyBuffer(VkDevice Device, GBuffer* Buffer)
 	vkDestroyBuffer(Device, Buffer->Buffer, nullptr);
 }
 
-VkImageMemoryBarrier ImageBarrier(VkImage       Image,
-                                  VkAccessFlags SrcAccessMask,
-                                  VkAccessFlags DstAccessMask,
-                                  VkImageLayout OldLayout,
-                                  VkImageLayout NewLayout)
+VkImageMemoryBarrier ImageBarrier(VkImage            Image,
+                                  VkAccessFlags      SrcAccessMask,
+                                  VkAccessFlags      DstAccessMask,
+                                  VkImageLayout      OldLayout,
+                                  VkImageLayout      NewLayout,
+                                  VkImageAspectFlags AspectMask)
 {
 	VkImageMemoryBarrier Barrier        = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
 	Barrier.srcAccessMask               = SrcAccessMask;
@@ -71,7 +72,7 @@ VkImageMemoryBarrier ImageBarrier(VkImage       Image,
 	Barrier.srcQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
 	Barrier.dstQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
 	Barrier.image                       = Image;
-	Barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	Barrier.subresourceRange.aspectMask = AspectMask;
 	Barrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
 	Barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
 
@@ -171,6 +172,13 @@ u32 GetImageMipLevels(u32 Width, u32 Height)
 {
 	const u32 Result = (u32)log2f((f32)Min(Width, Height));
 	return Result;
+}
+
+void DestroyImage(VkDevice Device, GImage* Image)
+{
+	vkFreeMemory(Device, Image->Memory, nullptr);
+	vkDestroyImageView(Device, Image->ImageView, nullptr);
+	vkDestroyImage(Device, Image->Image, nullptr);
 }
 
 static u32 SelectMemoryType(const VkPhysicalDeviceMemoryProperties& MemoryProperties, u32 MemoryTypeBits, u32 Flags)

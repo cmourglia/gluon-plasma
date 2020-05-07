@@ -424,22 +424,11 @@ VkPipeline CreateGraphicsPipeline(VkDevice Device, VkRenderPass RenderPass, VkPi
 	ViewportState.scissorCount                      = 1;
 	CreateInfo.pViewportState                       = &ViewportState;
 
-	// VkViewport Viewport = {};
-	// Viewport.x          = 0.0f;
-	// Viewport.y          = (f32)Swapchain.Extent.height;
-	// Viewport.width      = (f32)Swapchain.Extent.width;
-	// Viewport.height     = -(f32)Swapchain.Extent.height;
-	// Viewport.minDepth   = 0.0f;
-	// Viewport.maxDepth   = 1.0f;
-
-	// VkRect2D Scissor = {};
-	// Scissor.offset   = {0, 0};
-	// Scissor.extent   = Swapchain.Extent;
-
 	VkPipelineRasterizationStateCreateInfo RasterizationState = {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
 	RasterizationState.depthClampEnable                       = VK_FALSE;
 	RasterizationState.rasterizerDiscardEnable                = VK_FALSE;
 	RasterizationState.polygonMode                            = VK_POLYGON_MODE_FILL;
+	RasterizationState.cullMode                               = VK_CULL_MODE_BACK_BIT;
 	RasterizationState.lineWidth                              = 1.0f;
 	RasterizationState.depthBiasEnable                        = VK_FALSE;
 	CreateInfo.pRasterizationState                            = &RasterizationState;
@@ -450,6 +439,9 @@ VkPipeline CreateGraphicsPipeline(VkDevice Device, VkRenderPass RenderPass, VkPi
 	CreateInfo.pMultisampleState                          = &MultisampleState;
 
 	VkPipelineDepthStencilStateCreateInfo DepthStencilState = {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
+	DepthStencilState.depthTestEnable                       = VK_TRUE;
+	DepthStencilState.depthWriteEnable                      = VK_TRUE;
+	DepthStencilState.depthCompareOp                        = VK_COMPARE_OP_LESS_OR_EQUAL;
 	CreateInfo.pDepthStencilState                           = &DepthStencilState;
 
 	VkPipelineColorBlendAttachmentState ColorAttachmentState = {};

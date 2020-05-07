@@ -21,33 +21,37 @@ static VkExtent2D               ChooseSwapchainExtent(const VkSurfaceCapabilitie
 GSwapchain CreateSwapchain(VkPhysicalDevice           PhysicalDevice,
                            VkDevice                   Device,
                            VkSurfaceKHR               Surface,
-                           u32                        Width,
-                           u32                        Height,
-                           const GQueueFamilyIndices& QueueIndices)
+                           const GQueueFamilyIndices& QueueIndices,
+                           VkSwapchainKHR             OldSwapchain)
 {
 	GSwapchainSupportDetails Details = QuerySwapchainSupport(PhysicalDevice, Surface);
 
 	VkSurfaceFormatKHR SurfaceFormat = ChooseSwapchainSurfaceFormat(Details.Formats);
 	VkPresentModeKHR   PresentMode   = ChooseSwapchainPresentMode(Details.PresentModes);
-	VkExtent2D         Extent        = ChooseSwapchainExtent(Details.Capabilities, Width, Height);
 
-	const u32 ImageCount = Details.Capabilities.maxImageCount > 0
-	                           ? Min(Details.Capabilities.minImageCount + 1, Details.Capabilities.maxImageCount)
-	                           : Details.Capabilities.minImageCount + 1;
+	VkSurfaceCapabilitiesKHR SurfaceCaps;
+	VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(PhysicalDevice, Surface, &SurfaceCaps));
+
+	const u32 Width  = SurfaceCaps.currentExtent.width;
+	const u32 Height = SurfaceCaps.currentExtent.height;
+
+	u32 ImageCount = Details.Capabilities.maxImageCount > 0
+	                     ? Min(Details.Capabilities.minImageCount + 1, Details.Capabilities.maxImageCount)
+	                     : Details.Capabilities.minImageCount + 1;
 
 	VkSwapchainCreateInfoKHR CreateInfo = {VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
 	CreateInfo.surface                  = Surface;
 	CreateInfo.minImageCount            = ImageCount;
 	CreateInfo.imageFormat              = SurfaceFormat.format;
 	CreateInfo.imageColorSpace          = SurfaceFormat.colorSpace;
-	CreateInfo.imageExtent              = Extent;
+	CreateInfo.imageExtent              = {Width, Height};
 	CreateInfo.imageArrayLayers         = 1;
-	CreateInfo.imageUsage               = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	CreateInfo.imageUsage               = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	CreateInfo.preTransform             = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 	CreateInfo.compositeAlpha           = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 	CreateInfo.presentMode              = PresentMode;
 	CreateInfo.clipped                  = VK_TRUE;
-	CreateInfo.oldSwapchain             = VK_NULL_HANDLE; // TODO
+	CreateInfo.oldSwapchain             = OldSwapchain;
 
 	if (QueueIndices.GraphicsFamily != QueueIndices.PresentFamily)
 	{
@@ -61,44 +65,77 @@ GSwapchain CreateSwapchain(VkPhysicalDevice           PhysicalDevice,
 		CreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	}
 
-	GSwapchain Swapchain;
-	VK_CHECK(vkCreateSwapchainKHR(Device, &CreateInfo, nullptr, &Swapchain.Swapchain));
+	VkSwapchainKHR Swapchain;
+	VK_CHECK(vkCreateSwapchainKHR(Device, &CreateInfo, nullptr, &Swapchain));
 
-	VK_CHECK(vkGetSwapchainImagesKHR(Device, Swapchain.Swapchain, &Swapchain.ImageCount, nullptr));
-	VK_CHECK(vkGetSwapchainImagesKHR(Device, Swapchain.Swapchain, &Swapchain.ImageCount, Swapchain.Images));
+	ImageCount        = 0;
+	VkImage Images[8] = {};
+	VK_CHECK(vkGetSwapchainImagesKHR(Device, Swapchain, &ImageCount, nullptr));
+	VK_CHECK(vkGetSwapchainImagesKHR(Device, Swapchain, &ImageCount, Images));
 
-	Swapchain.Format = SurfaceFormat.format;
-	Swapchain.Extent = Extent;
+	// for (u32 Index = 0; Index < Swapchain.ImageCount; ++Index)
+	// {
+	// 	Swapchain.ImageViews[Index] = CreateImageView(Device, Swapchain.Images[Index], Swapchain.Format);
+	// }
 
-	for (u32 Index = 0; Index < Swapchain.ImageCount; ++Index)
-	{
-		Swapchain.ImageViews[Index] = CreateImageView(Device, Swapchain.Images[Index], Swapchain.Format);
-	}
+	GSwapchain Result     = {};
+	Result.Swapchain      = Swapchain;
+	Result.PhysicalDevice = PhysicalDevice;
+	Result.Device         = Device;
+	Result.Surface        = Surface;
+	Result.Format         = SurfaceFormat.format;
+	Result.Width          = Width;
+	Result.Height         = Height;
+	Result.QueueIndices   = &QueueIndices;
+	Result.ImageCount     = ImageCount;
 
-	return Swapchain;
+	memcpy(Result.Images, Images, ImageCount * sizeof(VkImage));
+
+	return Result;
 }
 
-void CreateSwapchainFramebuffers(VkDevice Device, VkRenderPass RenderPass, GSwapchain* Swapchain)
+// void CreateSwapchainFramebuffers(VkDevice Device, VkRenderPass RenderPass, GSwapchain* Swapchain)
+// {
+// 	for (u32 Index = 0; Index < Swapchain->ImageCount; ++Index)
+// 	{
+// 		Swapchain->Frameubffers[Index] = CreateFramebuffer(Device,
+// 		                                                   RenderPass,
+// 		                                                   1,
+// 		                                                   &Swapchain->ImageViews[Index],
+// 		                                                   Swapchain->Extent.width,
+// 		                                                   Swapchain->Extent.height);
+// 	}
+// }
+
+bool ResizeSwapchainIfNecessary(GSwapchain* Swapchain)
 {
-	for (u32 Index = 0; Index < Swapchain->ImageCount; ++Index)
+	VkSurfaceCapabilitiesKHR SurfaceCaps;
+	VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(Swapchain->PhysicalDevice, Swapchain->Surface, &SurfaceCaps));
+
+	const u32 NewWidth  = SurfaceCaps.currentExtent.width;
+	const u32 NewHeight = SurfaceCaps.currentExtent.height;
+
+	if (NewWidth == Swapchain->Width && NewHeight == Swapchain->Height)
 	{
-		Swapchain->Frameubffers[Index] = CreateFramebuffer(Device,
-		                                                   RenderPass,
-		                                                   1,
-		                                                   &Swapchain->ImageViews[Index],
-		                                                   Swapchain->Extent.width,
-		                                                   Swapchain->Extent.height);
+		return false;
 	}
+
+	GSwapchain OldSwapchain = *Swapchain;
+
+	*Swapchain = CreateSwapchain(Swapchain->PhysicalDevice,
+	                             Swapchain->Device,
+	                             Swapchain->Surface,
+	                             *Swapchain->QueueIndices,
+	                             OldSwapchain.Swapchain);
+
+	VK_CHECK(vkDeviceWaitIdle(Swapchain->Device));
+	DestroySwapchain(Swapchain->Device, &OldSwapchain);
+
+	return true;
 }
 
 void DestroySwapchain(VkDevice Device, GSwapchain* Swapchain)
 {
-	for (u32 Index = 0; Index < Swapchain->ImageCount; ++Index)
-	{
-		vkDestroyFramebuffer(Device, Swapchain->Frameubffers[Index], nullptr);
-		vkDestroyImageView(Device, Swapchain->ImageViews[Index], nullptr);
-	}
-
 	vkDestroySwapchainKHR(Device, Swapchain->Swapchain, nullptr);
 }
 

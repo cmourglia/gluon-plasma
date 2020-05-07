@@ -2,27 +2,30 @@
 
 #include "gvkcommon.h"
 
+struct GQueueFamilyIndices;
+
 struct GSwapchain
 {
 	VkSwapchainKHR Swapchain;
 
-	VkFormat      Format;
-	VkExtent2D    Extent;
-	u32           ImageCount;
-	VkImage       Images[8];
-	VkImageView   ImageViews[8];
-	VkFramebuffer Frameubffers[8];
-};
+	VkPhysicalDevice PhysicalDevice;
+	VkDevice         Device;
+	VkSurfaceKHR     Surface;
 
-struct GQueueFamilyIndices;
+	const GQueueFamilyIndices* QueueIndices;
+
+	VkFormat Format;
+	u32      Width, Height;
+	u32      ImageCount;
+	VkImage  Images[8];
+};
 
 GSwapchain CreateSwapchain(VkPhysicalDevice           PhysicalDevice,
                            VkDevice                   Device,
                            VkSurfaceKHR               Surface,
-                           u32                        Width,
-                           u32                        Height,
-                           const GQueueFamilyIndices& QueueIndices);
+                           const GQueueFamilyIndices& QueueIndices,
+                           VkSwapchainKHR             OldSwapchain = VK_NULL_HANDLE);
 
-void CreateSwapchainFramebuffers(VkDevice Device, VkRenderPass RenderPass, GSwapchain* Swapchain);
+bool ResizeSwapchainIfNecessary(GSwapchain* Swapchain);
 
 void DestroySwapchain(VkDevice Device, GSwapchain* Swapchain);
