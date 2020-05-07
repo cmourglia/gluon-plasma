@@ -73,7 +73,7 @@ private:
 			                     1,
 			                     &RenderBeginBarrier);
 
-			VkClearColorValue Color      = {1, 0, 1, 1};
+			VkClearColorValue Color      = {0.f / 255, 51.f / 255, 102.f / 255, 1};
 			VkClearValue      ClearColor = {Color};
 
 			VkRenderPassBeginInfo PassBeginInfo = {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
@@ -217,7 +217,7 @@ private:
 		GShader VertexShader   = LoadShader(Device, "Assets/Shaders/Bin/triangle.vert.spv");
 		GShader FragmentShader = LoadShader(Device, "Assets/Shaders/Bin/triangle.frag.spv");
 
-		RenderPass = CreateRenderPass(Device, Swapchain.Format);
+		CreateRenderPass();
 
 		MeshProgram = CreateProgram(Device, VK_PIPELINE_BIND_POINT_GRAPHICS, {&VertexShader, &FragmentShader});
 
@@ -250,6 +250,36 @@ private:
 
 		memcpy(VertexBuffer.Data, Model.Vertices.data(), Model.Vertices.size() * sizeof(GVertex));
 		memcpy(IndexBuffer.Data, Model.Indices.data(), Model.Indices.size() * sizeof(u32));
+	}
+
+	void CreateRenderPass()
+	{
+		VkAttachmentDescription ColorAttachment = {};
+		ColorAttachment.format                  = Swapchain.Format;
+		ColorAttachment.samples                 = VK_SAMPLE_COUNT_1_BIT;
+		ColorAttachment.loadOp                  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		ColorAttachment.storeOp                 = VK_ATTACHMENT_STORE_OP_STORE;
+		ColorAttachment.stencilLoadOp           = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		ColorAttachment.stencilStoreOp          = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		ColorAttachment.initialLayout           = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		ColorAttachment.finalLayout             = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		VkAttachmentReference ColorAttachmentReference = {};
+		ColorAttachmentReference.attachment            = 0;
+		ColorAttachmentReference.layout                = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		VkSubpassDescription Subpass = {};
+		Subpass.pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		Subpass.colorAttachmentCount = 1;
+		Subpass.pColorAttachments    = &ColorAttachmentReference;
+
+		VkRenderPassCreateInfo RenderPassCI = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
+		RenderPassCI.attachmentCount        = 1;
+		RenderPassCI.pAttachments           = &ColorAttachment;
+		RenderPassCI.subpassCount           = 1;
+		RenderPassCI.pSubpasses             = &Subpass;
+
+		VK_CHECK(vkCreateRenderPass(Device, &RenderPassCI, nullptr, &RenderPass));
 	}
 
 	void Cleanup()

@@ -133,39 +133,6 @@ VkDevice CreateLogicalDevice(VkPhysicalDevice           PhysicalDevice,
 	return Device;
 }
 
-VkRenderPass CreateRenderPass(VkDevice Device, VkFormat ColorFormat, VkFormat DepthFormat)
-{
-	VkAttachmentDescription ColorAttachment = {};
-	ColorAttachment.format                  = ColorFormat;
-	ColorAttachment.samples                 = VK_SAMPLE_COUNT_1_BIT;
-	ColorAttachment.loadOp                  = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	ColorAttachment.storeOp                 = VK_ATTACHMENT_STORE_OP_STORE;
-	ColorAttachment.stencilLoadOp           = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	ColorAttachment.stencilStoreOp          = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	ColorAttachment.initialLayout           = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	ColorAttachment.finalLayout             = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-	VkAttachmentReference ColorAttachmentReference = {};
-	ColorAttachmentReference.attachment            = 0;
-	ColorAttachmentReference.layout                = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-	VkSubpassDescription Subpass = {};
-	Subpass.pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	Subpass.colorAttachmentCount = 1;
-	Subpass.pColorAttachments    = &ColorAttachmentReference;
-
-	VkRenderPassCreateInfo RenderPassCI = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
-	RenderPassCI.attachmentCount        = 1;
-	RenderPassCI.pAttachments           = &ColorAttachment;
-	RenderPassCI.subpassCount           = 1;
-	RenderPassCI.pSubpasses             = &Subpass;
-
-	VkRenderPass RenderPass;
-	VK_CHECK(vkCreateRenderPass(Device, &RenderPassCI, nullptr, &RenderPass));
-
-	return RenderPass;
-}
-
 VkFramebuffer CreateFramebuffer(VkDevice     Device,
                                 VkRenderPass RenderPass,
                                 u32          AttachmentCount,

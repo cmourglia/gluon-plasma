@@ -33,11 +33,8 @@ VkDebugUtilsMessengerEXT SetupDebugMessenger(VkInstance Instance);
 
 bool CheckValidationLayerSupport(u32 ValidationLayerCount, const char** ValidationLayerNames);
 
-VkRenderPass CreateRenderPass(VkDevice Device, VkFormat Format);
-
 VkFramebuffer CreateFramebuffer(VkDevice Device, VkRenderPass, u32 AttachmentCount, VkImageView* Attachments, u32 Width, u32 Height);
 
 VkSemaphore CreateSemaphore(VkDevice Device);
 
 VkCommandPool CreateCommandPool(VkDevice Device, u32 FamilyIndex);
-
