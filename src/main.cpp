@@ -22,6 +22,7 @@
 #include "timer.cpp"
 
 #include "renderer.h"
+#include "gln_interpolate.h"
 
 static bool gShowStats   = false;
 static bool gEnableVSync = true;
@@ -38,22 +39,17 @@ static uint32_t g_WindowHeight = 768;
 // static bgfx::DynamicVertexBufferHandle BorderColorSizeBuffer = GLUON_INVALID_HANDLE;
 // static bgfx::IndirectBufferHandle      IndirectBufferHandle  = GLUON_INVALID_HANDLE;
 
-static void ErrorCallback(int Error, const char* Description)
-{
-	LOG_F(ERROR, "GLFW Error %d: %s\n", Error, Description);
-}
+static void ErrorCallback(int Error, const char* Description) { LOG_F(ERROR, "GLFW Error %d: %s\n", Error, Description); }
 
 int   g_ElemCount = 2;
 float g_Delta     = 2.0f / g_ElemCount;
 float g_Radius    = g_Delta / 2.0f;
 
-eastl::vector<color>      g_Colors;
-static rendering_context* g_Context;
+eastl::vector<gln::color>      g_Colors;
+static gln::rendering_context* g_Context;
+eastl::vector<float>           g_Radii;
 
-inline color GetRandomColor()
-{
-	return color{(float)rand() / RAND_MAX, (float)rand() / RAND_MAX, (float)rand() / RAND_MAX};
-}
+gln::color GetRandomColor() { return gln::color{(float)rand() / RAND_MAX, (float)rand() / RAND_MAX, (float)rand() / RAND_MAX}; }
 
 void SetColors()
 {
@@ -63,6 +59,19 @@ void SetColors()
 		Color = GetRandomColor();
 	}
 }
+
+void SetRadii()
+{
+	auto GetRandomRadius = []() { return ((float)rand() / RAND_MAX) * 3 + 1; };
+
+	g_Radii.resize(g_ElemCount * g_ElemCount);
+	for (auto& R : g_Radii)
+	{
+		R = GetRandomRadius();
+	}
+}
+
+static f32 CurrentTime = 0.0f;
 
 static void KeyCallback(GLFWwindow* Window, int Key, int Scancode, int Action, int Mods)
 {
@@ -98,9 +107,12 @@ static void CharCallback(GLFWwindow* Window, unsigned int Codepoint)
 	}
 
 	SetColors();
+	SetRadii();
 
 	g_Delta  = 2.0f / g_ElemCount;
 	g_Radius = g_Delta / 2.0f;
+
+	CurrentTime = 0.0f;
 }
 
 static void ResizeCallback(GLFWwindow* Window, int Width, int Height)
@@ -108,8 +120,43 @@ static void ResizeCallback(GLFWwindow* Window, int Width, int Height)
 	g_WindowWidth  = Width;
 	g_WindowHeight = Height;
 
-	Resize(g_Context, Width, Height);
+	Resize(g_Context, (f32)Width, (f32)Height);
 }
+
+struct brick
+{
+	brick(i32 i, i32 j, i32 MaxCount)
+	{
+		Delay = ((f32)rand() / RAND_MAX) * 0.1f;
+
+		const f32 FracW = (f32)g_WindowWidth / (MaxCount + 1);
+		const f32 FracH = (f32)g_WindowHeight / (MaxCount + 1);
+
+		StartPosition = gln::vec2((f32)(i + 1) * FracW, (f32)(j + 1) * FracH - g_WindowHeight);
+		EndPosition   = gln::vec2((f32)(i + 1) * FracW, (f32)(j + 1) * FracH);
+		StartColor    = GetRandomColor();
+		EndColor      = GetRandomColor();
+		EndSize       = 1.0f / MaxCount;
+		StartSize     = EndSize * 0.5f;
+	}
+
+	f32        Delay;
+	gln::vec2  StartPosition, EndPosition;
+	f32        StartSize, EndSize;
+	gln::color StartColor, EndColor;
+
+	void Render(f32 Time, f32 AnimationTime)
+	{
+		Time -= Delay;
+		auto Position = gln::Interpolate(Time, AnimationTime, StartPosition, EndPosition, gln::EaseOutElastic);
+		auto Size     = gln::Interpolate(Time, AnimationTime, StartSize, EndSize, gln::EaseOutBounce);
+		// auto Color    = gln::Interpolate(Time, AnimationTime / 2, StartColor, EndColor, gln::EaseLinear, gln::ColorSpace_HSV);
+		auto Color = EndColor;
+
+		Size = Size * gln::Min((f32)g_WindowWidth, (f32)g_WindowHeight) * 0.5f;
+		gln::DrawRectangle(g_Context, Position.x, Position.y, Size, Size, Color);
+	}
+};
 
 int main()
 {
@@ -124,6 +171,7 @@ int main()
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_FALSE);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	// glfwWindowHint(GLFW_SAMPLES, 4);
 
 #ifdef _DEBUG
 	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
@@ -137,6 +185,7 @@ int main()
 	}
 
 	glfwMakeContextCurrent(Window);
+	glfwSwapInterval(0);
 
 	glfwSetKeyCallback(Window, KeyCallback);
 	glfwSetCharCallback(Window, CharCallback);
@@ -150,8 +199,8 @@ int main()
 	g_WindowWidth  = Width;
 	g_WindowHeight = Height;
 
-	g_Context = CreateRenderingContext();
-	Resize(g_Context, Width, Height);
+	g_Context = gln::CreateRenderingContext();
+	gln::Resize(g_Context, Width, Height);
 
 	// ParamsHandle = bgfx::createUniform("Params", bgfx::UniformType::Vec4, 2);
 
@@ -164,9 +213,22 @@ int main()
 	// IndirectBufferHandle = bgfx::createIndirectBuffer(256);
 
 	SetColors();
+	SetRadii();
+
+	const f32 AnimationTime = 2.0f;
 
 	timer Timer;
 	Timer.Start();
+
+	eastl::vector<brick> Bricks;
+	i32                  MaxCount = 25;
+	for (int i = 0; i < MaxCount; ++i)
+	{
+		for (int j = 0; j < MaxCount; ++j)
+		{
+			Bricks.emplace_back(i, j, MaxCount);
+		}
+	}
 
 	eastl::vector<double> Times;
 
@@ -176,9 +238,11 @@ int main()
 
 		glfwPollEvents();
 
+		const f32 dt = (f32)Timer.DeltaTime();
+
 		const auto ViewMatrix = glm::mat4(1.0f);
 		const auto ProjMatrix = glm::orthoLH_ZO(0.0f, (float)g_WindowWidth, (float)g_WindowHeight, 0.0f, 0.0f, 100.0f);
-		SetCameraInfo(g_Context, glm::value_ptr(ViewMatrix), glm::value_ptr(ProjMatrix));
+		gln::SetCameraInfo(g_Context, glm::value_ptr(ViewMatrix), glm::value_ptr(ProjMatrix));
 
 		// DrawRectangle(&Context, g_WindowWidth / 2.f, 50, 100, 100, GetRandomColor());
 		// DrawRectangle(&Context, g_WindowWidth / 2.f, 150, 100, 100, GetRandomColor());
@@ -188,27 +252,40 @@ int main()
 		// DrawRectangle(&Context, g_WindowWidth / 2.f, 550, 100, 100, GetRandomColor());
 		// DrawRectangle(&Context, g_WindowWidth / 2.f, 650, 100, 100, GetRandomColor());
 
-		for (int i = 0; i < g_ElemCount; ++i)
+		// if (CurrentTime >= AnimationTime)
+		// {
+		// CurrentTime = 0.0f;
+		// std::swap(CurrentSize, CurrentTarget);
+		// }
+
+		for (auto&& Brick : Bricks)
 		{
-			for (int j = 0; j < g_ElemCount; ++j)
-			{
-				const float x = -1.0f + g_Delta * i + g_Radius;
-				const float y = -1.0f + g_Delta * j + g_Radius;
-
-				const float FinalX      = (x + 1.f) * 0.5f * g_WindowWidth;
-				const float FinalY      = (y + 1.f) * 0.5f * g_WindowHeight;
-				const float FinalRadius = g_Radius * eastl::min(g_WindowWidth, g_WindowHeight) * 0.5f;
-
-				DrawRectangle(g_Context, FinalX, FinalY, FinalRadius, FinalRadius, g_Colors[i * g_ElemCount + j]);
-			}
+			Brick.Render(CurrentTime, AnimationTime);
 		}
 
-		Flush(g_Context);
+		CurrentTime += dt;
+
+		// for (int i = 0; i < g_ElemCount; ++i)
+		// {
+		// 	for (int j = 0; j < g_ElemCount; ++j)
+		// 	{
+		// 		const float x = -1.0f + g_Delta * i + g_Radius;
+		// 		const float y = -1.0f + g_Delta * j + g_Radius;
+
+		// 		const float FinalX    = (x + 1.f) * 0.5f * g_WindowWidth;
+		// 		const float FinalY    = (y + 1.f) * 0.5f * g_WindowHeight;
+		// 		const float FinalSize = Size * eastl::min(g_WindowWidth, g_WindowHeight) * 0.5f;
+		// 		// const float FinalRadius = FinalSize / g_Radii[i * g_ElemCount + j];
+		// 		gln::DrawRectangle(g_Context, FinalX, FinalY, FinalSize * 2, FinalSize, g_Colors[i * g_ElemCount + j]);
+		// 	}
+		// }
+
+		gln::Flush(g_Context);
 
 		// Debug
 		glfwSwapBuffers(Window);
 
-		Times.push_back(Timer.DeltaTime());
+		Times.push_back(dt);
 		if (Times.size() == 100)
 		{
 			const double Sum = eastl::accumulate(Times.begin(), Times.end(), 0.0);
