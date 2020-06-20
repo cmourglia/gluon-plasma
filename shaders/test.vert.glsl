@@ -23,7 +23,7 @@ uniform mat4 u_Proj;
 void main()
 {
     vec2 Translation = u_RectangleInfos[gl_InstanceID].PositionSize.xy;
-    Translation = mix(Translation - 15, Translation + 15, in_Position * 0.5 + 0.5);
+    Translation = mix(Translation - 100, Translation + 100, in_Position * 0.5 + 0.5);
     vec2 Scale = u_RectangleInfos[gl_InstanceID].PositionSize.zw;
 
     vec2 Position = in_Position * Scale + Translation;
