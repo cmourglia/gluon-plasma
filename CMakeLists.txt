@@ -83,7 +83,7 @@ endmacro(COMPILE_SHADER)
 #     compile_shader(${SHADER})
 # endforeach()
 
-add_executable(gluon src/main.cpp src/renderer.cpp src/render_backend.cpp)
+add_executable(gluon src/main.cpp src/renderer.cpp src/render_backend.cpp src/gln_color.cpp)
 target_link_libraries(gluon PUBLIC glad glfw loguru eastl optick)
 target_include_directories(gluon PUBLIC external/rapidjson/include external/glm)
 target_compile_definitions(gluon PUBLIC USE_OPTICK=0)
