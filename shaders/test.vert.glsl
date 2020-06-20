@@ -4,9 +4,9 @@ layout (location = 0) in vec2 in_Position;
 
 struct rectangle_info
 {
-    vec4 PositionSize;
-    vec4 FillColor;
-    vec4 BorderColorSize;
+	vec4 PositionSize;
+	vec4 FillColorRadius;
+	vec4 BorderColorSize;
 };
 
 layout (std430, binding=1) buffer rect_infos
