@@ -8,7 +8,7 @@ layout (location = 0) out vec4 out_Color;
 struct rectangle_info
 {
 	vec4 PositionSize;
-	vec4 FillColor;
+	vec4 FillColorRadius;
 	vec4 BorderColorSize;
 };
 
@@ -28,19 +28,21 @@ float GetRectangleAlpha(vec2 Position, vec2 Center, vec2 Size, float Radius)
 
 void main()
 {
-	vec2 Position = InPosition;
-	vec2 Center = vec2(u_View * vec4(u_RectangleInfos[InstanceID].PositionSize.xy, 0, 1));
-	vec2 Size = u_RectangleInfos[InstanceID].PositionSize.zw;
-	float Radius = Size.x / 3 ;
+	rectangle_info Rectangle = u_RectangleInfos[InstanceID];
 
-	float Border = 5;
+	vec2 Position = InPosition;
+	vec2 Center = vec2(u_View * vec4(Rectangle.PositionSize.xy, 0, 1));
+	vec2 Size = Rectangle.PositionSize.zw;
+	float Radius = Rectangle.FillColorRadius.a;
+
+	float Border = 4;
 	float BorderAA = 1;
 	float Alpha = GetRectangleAlpha(Position, Center, Size, Radius);
 	float AlphaBorder = GetRectangleAlpha(Position, Center, Size + Border, Radius == 0 ? 0 : Radius + Border);
 
 	out_Color.a = 1.0;
 
-	vec3 FillColor = u_RectangleInfos[InstanceID].FillColor.rgb;
+	vec3 FillColor = Rectangle.FillColorRadius.rgb;
 	vec3 BorderColor = vec3(0);
 
 	vec3 Color;
