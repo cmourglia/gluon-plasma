@@ -4,6 +4,8 @@
 
 #include <EASTL/numeric_limits.h>
 
+namespace gln
+{
 static constexpr uint32_t k_InvalidHandle = eastl::numeric_limits<uint32_t>::max();
 
 #define GLUON_HANDLE(name_t)                                                                                                               \
@@ -107,3 +109,4 @@ void UpdateBufferData(buffer_handle Handle, const void* Data, int64_t Offet = 0,
 //! Set length to -1 to map the buffer until the end
 void* MapBuffer(buffer_handle Handle, int64_t Offset = 0, int64_t Length = -1);
 void  UnmapBuffer(buffer_handle Handle);
+}

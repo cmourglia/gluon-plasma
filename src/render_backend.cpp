@@ -10,6 +10,8 @@
 
 #include <stdio.h>
 
+namespace gln
+{
 void OpenGLMessageCallback(GLenum        Source,
                            GLenum        Type,
                            GLuint        Id,
@@ -467,4 +469,5 @@ void UpdateBufferData(buffer_handle Handle, const void* Data, int64_t Offset, in
 	}
 
 	glNamedBufferSubData(Handle.Idx, Offset, Length, Data);
+}
 }

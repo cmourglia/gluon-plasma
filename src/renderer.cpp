@@ -1,5 +1,6 @@
 #include "renderer.h"
 #include "render_backend.h"
+#include "gln_math.h"
 
 #include <glad/glad.h>
 
@@ -21,27 +22,27 @@
 
 #include <optick.h>
 
+namespace gln
+{
+
 struct pos_texcoord_vertex
 {
-	glm::vec2 Position;
-	// glm::vec2 Texcoords;
-	// glm::vec4 Color;
+	vec2 Position;
+	// vec2 Texcoords;
+	// vec4 Color;
 
 	static vertex_layout s_Layout;
 
-	static void Init()
-	{
-		s_Layout.Begin().Add(DataType_Float, 2).End();
-	}
+	static void Init() { s_Layout.Begin().Add(DataType_Float, 2).End(); }
 };
 
 vertex_layout pos_texcoord_vertex::s_Layout = vertex_layout();
 
 constexpr eastl::array<pos_texcoord_vertex, 4> k_QuadVertices = {
-    pos_texcoord_vertex{glm::vec2{-1.0f, -1.0f} /*, glm::vec2{1.0f, 0.0f}*/},
-    pos_texcoord_vertex{glm::vec2{-1.0f, 1.0f} /*, glm::vec2{0.0f, 1.0f}*/},
-    pos_texcoord_vertex{glm::vec2{1.0f, 1.0f} /*, glm::vec2{1.0f, 1.0f}*/},
-    pos_texcoord_vertex{glm::vec2{1.0f, -1.0f} /*, glm::vec2{1.0f, 0.0f}*/},
+    pos_texcoord_vertex{vec2{-1.0f, -1.0f} /*, vec2{1.0f, 0.0f}*/},
+    pos_texcoord_vertex{vec2{-1.0f, 1.0f} /*, vec2{0.0f, 1.0f}*/},
+    pos_texcoord_vertex{vec2{1.0f, 1.0f} /*, vec2{1.0f, 1.0f}*/},
+    pos_texcoord_vertex{vec2{1.0f, -1.0f} /*, vec2{1.0f, 0.0f}*/},
 };
 
 constexpr eastl::array<uint16_t, 6> k_QuadIndices = {0, 2, 1, 0, 3, 2};
@@ -49,18 +50,18 @@ constexpr eastl::array<uint16_t, 6> k_QuadIndices = {0, 2, 1, 0, 3, 2};
 #pragma pack(push, 1)
 struct rectangle
 {
-	glm::vec2 Position;
-	glm::vec2 Size;
-	color     FillColor;
-	color     BorderColorSize;
+	vec2  Position;
+	vec2  Size;
+	color FillColorRadius;
+	color BorderColorSize;
 };
 #pragma pack(pop)
 
 struct rendering_context
 {
-	eastl::vector<glm::vec4> Positions;
-	eastl::vector<glm::vec4> FillColorRadii;
-	eastl::vector<glm::vec4> BorderColorSize;
+	eastl::vector<vec4> Positions;
+	eastl::vector<vec4> FillColorRadii;
+	eastl::vector<vec4> BorderColorSize;
 
 	eastl::vector<rectangle> Rectangles;
 	size_t                   LastRectangleCount;
@@ -162,20 +163,23 @@ void DrawRectangle(rendering_context* Context,
                    float              Width,
                    float              Height,
                    color              Color,
+                   float              Radius /* = 0.0f */,
                    float              BorderWidth /*= 1.0f*/,
-                   color              BorderColor /*= {0.0f, 0.0f, 0.0f, 1.0f}*/)
+                   color              BorderColor /*= {0.0f, 0.0f, 0.0f, 1.0f}*/
+)
 {
 	OPTICK_EVENT();
 
 	rectangle Rectangle;
-	Rectangle.Position          = glm::vec2(X, Y);
-	Rectangle.Size              = glm::vec2(Width, Height) / 2.0f;
+	Rectangle.Position          = vec2(X, Y);
+	Rectangle.Size              = vec2(Width, Height) / 2.0f;
 	Rectangle.BorderColorSize   = BorderColor;
-	Rectangle.BorderColorSize.a = BorderWidth;
-	Rectangle.FillColor         = Color;
+	Rectangle.BorderColorSize.A = BorderWidth;
+	Rectangle.FillColorRadius   = Color;
+	Rectangle.FillColorRadius.A = Clamp(Radius, 0.0, Min(Width, Height) / 2.0f);
 
 	Context->Rectangles.push_back(Rectangle);
-	Context->Positions.push_back(glm::vec4(X, Y, Width, Height));
+	Context->Positions.push_back(vec4(X, Y, Width, Height));
 }
 
 void Flush(rendering_context* Context)
@@ -236,4 +240,5 @@ void Flush(rendering_context* Context)
 
 	Context->Rectangles.clear();
 	Context->Positions.clear();
+}
 }
