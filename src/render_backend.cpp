@@ -418,14 +418,14 @@ void ResizeBuffer(buffer_handle Handle, int64_t NewSize, const void* Data)
 void ResizeImmutableBuffer(buffer_handle* Handle, int64_t NewSize, const void* Data)
 {
 #ifdef _DEBUG
-	if (!glIsBuffer(Handle.Idx))
+	if (!glIsBuffer(Handle->Idx))
 	{
-		LOG_F(ERROR, "Buffer %d is not a buffer", Handle.Idx);
+		LOG_F(ERROR, "Buffer %d is not a buffer", Handle->Idx);
 	}
 
-	if (s_BufferInfos[Handle.Idx].Mapped)
+	if (s_BufferInfos[Handle->Idx].Mapped)
 	{
-		LOG_F(ERROR, "Buffer %d must be unmapped before resize", Handle.Idx);
+		LOG_F(ERROR, "Buffer %d must be unmapped before resize", Handle->Idx);
 	}
 #endif
 
