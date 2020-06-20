@@ -36,7 +36,7 @@ void main()
 	float Border = 5;
 	float BorderAA = 1;
 	float Alpha = GetRectangleAlpha(Position, Center, Size, Radius);
-	float AlphaBorder = GetRectangleAlpha(Position, Center, Size + Border, Radius + Border);
+	float AlphaBorder = GetRectangleAlpha(Position, Center, Size + Border, Radius == 0 ? 0 : Radius + Border);
 
 	out_Color.a = 1.0;
 
