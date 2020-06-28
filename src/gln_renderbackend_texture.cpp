@@ -38,6 +38,9 @@ texture_handle CreateTexture(u32 Width, u32 Height, u32 ComponentCount, data_typ
 
 	glTextureStorage2D(Texture.Idx, Levels, GetInternalFormat(ComponentCount, DataType), Width, Height);
 
+	SetTextureFiltering(Texture, MinFilter_Linear, MagFilter_Linear);
+	SetTextureWrapping(Texture, WrapMode_Repeat, WrapMode_Repeat);
+
 	TextureInfos[Texture.Idx] = {Width, Height, ComponentCount, DataType, WithMipmap};
 
 	if (Data != nullptr)
