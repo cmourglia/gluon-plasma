@@ -54,7 +54,7 @@ texture_handle CreateTexture(u32 Width, u32 Height, u32 ComponentCount, data_typ
 void SetTextureData(texture_handle Handle, void* Data)
 {
 	const auto& Info = TextureInfos[Handle.Idx];
-	glTextureSubImage2D(Handle.Idx, 0, 0, 0, Info.Width, Info.Height, GetFormat(Info.DataType), GetDataType(Info.DataType), Data);
+	glTextureSubImage2D(Handle.Idx, 0, 0, 0, Info.Width, Info.Height, GetFormat(Info.ComponentCount), GetDataType(Info.DataType), Data);
 
 	if (Info.WithMipmap)
 	{
