@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gln_math.h"
+#include <gluon/core/gln_math.h>
 
 namespace gln
 {

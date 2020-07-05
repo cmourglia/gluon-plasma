@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gln_defines.h"
+#include <gluon/core/gln_defines.h>
 
 #include <eastl/unordered_map.h>
 
@@ -50,5 +50,4 @@ struct font_atlas
 
 // Assumes font to be in resources/fonts path.
 font_atlas LoadFontAtlas(const char* FontName);
-
 }

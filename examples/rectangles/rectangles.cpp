@@ -1,6 +1,3 @@
-#include <loguru.hpp>
-
-#include <glad/glad.h>
 #include <glfw/glfw3.h>
 
 #include <glm/glm.hpp>
@@ -15,16 +12,12 @@
 #include <eastl/string.h>
 #include <eastl/unordered_map.h>
 
-#include <rapidjson/document.h>
+#include <gluon/core/gln_timer.h>
 
-#include <optick.h>
+#include <gluon/api/gln_renderer.h>
+#include <gluon/api/gln_interpolate.h>
 
-#include <stb_image.h>
-
-#include "timer.cpp"
-
-#include "renderer.h"
-#include "gln_interpolate.h"
+#include <loguru.hpp>
 
 static bool gShowStats   = false;
 static bool gEnableVSync = true;
@@ -126,9 +119,6 @@ static void KeyCallback(GLFWwindow* Window, i32 Key, i32 Scancode, i32 Action, i
 
 static void CharCallback(GLFWwindow* Window, u32 Codepoint)
 {
-#if 1
-	WrittenString += Codepoint;
-#else
 	if (Codepoint == '+')
 	{
 		g_ElemCount *= 2;
@@ -148,7 +138,6 @@ static void CharCallback(GLFWwindow* Window, u32 Codepoint)
 	g_Radius = g_Delta / 2.0f;
 
 	CurrentTime = 0.0f;
-#endif
 }
 
 static void ResizeCallback(GLFWwindow* Window, i32 Width, i32 Height)
@@ -158,8 +147,6 @@ static void ResizeCallback(GLFWwindow* Window, i32 Width, i32 Height)
 
 	Resize(g_Context, (f32)Width, (f32)Height);
 }
-
-static void ContentScaleCallback(GLFWwindow* Window, f32 ScaleX, f32 ScaleY) { LOG_F(INFO, "%f %f", ScaleX, ScaleY); }
 
 struct brick
 {
@@ -223,15 +210,11 @@ i32 main()
 	}
 
 	glfwMakeContextCurrent(Window);
-	// glfwSwapInterval(0);
+	glfwSwapInterval(0);
 
 	glfwSetKeyCallback(Window, KeyCallback);
 	glfwSetCharCallback(Window, CharCallback);
 	glfwSetWindowSizeCallback(Window, ResizeCallback);
-	glfwSetWindowContentScaleCallback(Window, ContentScaleCallback);
-
-	// Call bgfx::renderFrame before bgfx::init to signal to bgfx not to create a render thread.
-	// Most graphics APIs must be used on the same thread that created the window.
 
 	i32 Width, Height;
 	glfwGetWindowSize(Window, &Width, &Height);
@@ -243,17 +226,6 @@ i32 main()
 
 	g_Context = gln::CreateRenderingContext();
 	gln::Resize(g_Context, Width, Height);
-	gln::SetTextScale(g_Context, ScaleX, ScaleY);
-
-	// ParamsHandle = bgfx::createUniform("Params", bgfx::UniformType::Vec4, 2);
-
-	// bgfx::VertexLayout VertexLayout;
-	// VertexLayout.begin().add(bgfx::Attrib::TexCoord0, 4, bgfx::AttribType::Float).end();
-
-	// PositionBuffer = bgfx::createDynamicVertexBuffer(1 << 15, VertexLayout, BGFX_BUFFER_COMPUTE_READ);
-	// FillColorRadiusBuffer = bgfx::createDynamicVertexBuffer(1 << 15, VertexLayout, BGFX_BUFFER_COMPUTE_READ);
-	// BorderColorSizeBuffer = bgfx::createDynamicVertexBuffer(1 << 15, VertexLayout, BGFX_BUFFER_COMPUTE_READ);
-	// IndirectBufferHandle = bgfx::createIndirectBuffer(256);
 
 	SetColors();
 	SetRadii();
@@ -263,52 +235,6 @@ i32 main()
 	timer Timer;
 	Timer.Start();
 
-#if 1
-	eastl::vector<double> Times;
-
-	while (!glfwWindowShouldClose(Window))
-	{
-		OPTICK_FRAME("MainThread");
-
-		glfwPollEvents();
-
-		const f32 dt = (f32)Timer.DeltaTime();
-
-		const auto ViewMatrix = glm::mat4(1.0f);
-		const auto ProjMatrix = glm::orthoLH_ZO(0.0f, (float)g_WindowWidth, (float)g_WindowHeight, 0.0f, 0.0f, 100.0f);
-		gln::SetCameraInfo(g_Context, glm::value_ptr(ViewMatrix), glm::value_ptr(ProjMatrix));
-
-		// gln::DrawRectangle(ctx, x, y, w, h, fill, radis, border, bordercolor);
-		f32 x = g_WindowWidth / 2.0f;
-		f32 y = g_WindowHeight / 2.0f;
-
-		gln::SetFont(g_Context, "DIMIS");
-		gln::DrawText(g_Context, WrittenString.c_str(), 32, 0, y, gln::MakeColorFromRGB8(0, 0, 0));
-		gln::SetFont(g_Context, "Lamthong");
-		gln::DrawText(g_Context, eastl::u32string(U"Hello, World !").c_str(), 256, x / 2, y / 2, gln::MakeColorFromRGB8(0, 0, 0));
-		gln::SetFont(g_Context, "Roboto");
-		gln::DrawText(g_Context, eastl::u32string(U"Hello, World !").c_str(), 64, x / 2, y + y / 2, gln::MakeColorFromRGB8(0, 0, 0));
-
-		CurrentTime += dt;
-
-		gln::Flush(g_Context);
-
-		// Debug
-		glfwSwapBuffers(Window);
-
-		Times.push_back(dt);
-		if (Times.size() == 100)
-		{
-			const double Sum = eastl::accumulate(Times.begin(), Times.end(), 0.0);
-			const double Avg = Sum * 1e-2;
-
-			char Buffer[512];
-			snprintf(Buffer, 512, "GLUON RPZ (%lf FPS - %lf ms)", 1.0 / Avg, Avg * 1000);
-			glfwSetWindowTitle(Window, Buffer);
-			Times.clear();
-		}
-	}
-#else
 	eastl::vector<brick> Bricks;
 	i32                  MaxCount = 25;
 	for (i32 i = 0; i < MaxCount; ++i)
@@ -323,8 +249,6 @@ i32 main()
 
 	while (!glfwWindowShouldClose(Window))
 	{
-		OPTICK_FRAME("MainThread");
-
 		glfwPollEvents();
 
 		const f32 dt = (f32)Timer.DeltaTime();
@@ -333,41 +257,12 @@ i32 main()
 		const auto ProjMatrix = glm::orthoLH_ZO(0.0f, (float)g_WindowWidth, (float)g_WindowHeight, 0.0f, 0.0f, 100.0f);
 		gln::SetCameraInfo(g_Context, glm::value_ptr(ViewMatrix), glm::value_ptr(ProjMatrix));
 
-		// DrawRectangle(&Context, g_WindowWidth / 2.f, 50, 100, 100, GetRandomColor());
-		// DrawRectangle(&Context, g_WindowWidth / 2.f, 150, 100, 100, GetRandomColor());
-		// DrawRectangle(&Context, g_WindowWidth / 2.f, 250, 100, 100, GetRandomColor());
-		// DrawRectangle(&Context, g_WindowWidth / 2.f, 350, 100, 100, GetRandomColor());
-		// DrawRectangle(&Context, g_WindowWidth / 2.f, 450, 100, 100, GetRandomColor());
-		// DrawRectangle(&Context, g_WindowWidth / 2.f, 550, 100, 100, GetRandomColor());
-		// DrawRectangle(&Context, g_WindowWidth / 2.f, 650, 100, 100, GetRandomColor());
-
-		// if (CurrentTime >= AnimationTime)
-		// {
-		// CurrentTime = 0.0f;
-		// std::swap(CurrentSize, CurrentTarget);
-		// }
-
 		for (auto&& Brick : Bricks)
 		{
 			Brick.Render(CurrentTime, AnimationTime);
 		}
 
 		CurrentTime += dt;
-
-		// for (i32 i = 0; i < g_ElemCount; ++i)
-		// {
-		// 	for (i32 j = 0; j < g_ElemCount; ++j)
-		// 	{
-		// 		const float x = -1.0f + g_Delta * i + g_Radius;
-		// 		const float y = -1.0f + g_Delta * j + g_Radius;
-
-		// 		const float FinalX    = (x + 1.f) * 0.5f * g_WindowWidth;
-		// 		const float FinalY    = (y + 1.f) * 0.5f * g_WindowHeight;
-		// 		const float FinalSize = Size * eastl::min(g_WindowWidth, g_WindowHeight) * 0.5f;
-		// 		// const float FinalRadius = FinalSize / g_Radii[i * g_ElemCount + j];
-		// 		gln::DrawRectangle(g_Context, FinalX, FinalY, FinalSize * 2, FinalSize, g_Colors[i * g_ElemCount + j]);
-		// 	}
-		// }
 
 		gln::Flush(g_Context);
 
@@ -386,9 +281,6 @@ i32 main()
 			Times.clear();
 		}
 	}
-#endif
-
-	OPTICK_SHUTDOWN();
 
 	return 0;
 }

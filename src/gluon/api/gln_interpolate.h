@@ -1,7 +1,8 @@
 #pragma once
 
-#include "gln_defines.h"
-#include "gln_easing.h"
+#include <gluon/api/gln_easing.h>
+
+#include <gluon/core/gln_defines.h>
 
 namespace gln
 {

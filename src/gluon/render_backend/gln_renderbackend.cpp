@@ -1,9 +1,7 @@
-#include "render_backend.h"
+#include <gluon/render_backend/gln_renderbackend.h>
 
 #include <glad/glad.h>
-
 #include <EASTL/array.h>
-
 #include <loguru.hpp>
 
 #include <stdio.h>
@@ -50,6 +48,16 @@ void OpenGLMessageCallback(GLenum        Source,
 		default:
 			LOG_F(INFO, "%s (%d): %s", SourceStr, Id, Message);
 	}
+}
+
+void InitializeBackend()
+{
+	if (!gladLoadGL())
+	{
+		LOG_F(FATAL, "Cannot load OpenGL functions");
+	}
+
+	LOG_F(INFO, "OpenGL:\n\tVersion %s\n\tVendor %s", glGetString(GL_VERSION), glGetString(GL_VENDOR));
 }
 
 void EnableDebugging()

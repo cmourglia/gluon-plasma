@@ -1,6 +1,6 @@
-#include "render_backend.h"
+#include <gluon/render_backend/gln_renderbackend.h>
 
-#include "gln_math.h"
+#include <gluon/core/gln_math.h>
 
 #include <glad/glad.h>
 

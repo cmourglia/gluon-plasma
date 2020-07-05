@@ -1,7 +1,9 @@
-#include "renderer.h"
-#include "render_backend.h"
-#include "gln_math.h"
-#include "gln_text.h"
+#include <gluon/api/gln_renderer.h>
+#include <gluon/api/gln_text.h>
+
+#include <gluon/render_backend/gln_renderbackend.h>
+
+#include <gluon/core/gln_math.h>
 
 #include <glad/glad.h>
 
@@ -22,8 +24,6 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <loguru.hpp>
-
-#include <optick.h>
 
 namespace gln
 {
@@ -139,13 +139,7 @@ static fs::file_time_type g_TextFShaderTime;
 
 rendering_context* CreateRenderingContext()
 {
-	if (!gladLoadGL())
-	{
-		LOG_F(FATAL, "Cannot load OpenGL functions");
-	}
-
-	LOG_F(INFO, "OpenGL:\n\tVersion %s\n\tVendor %s", glGetString(GL_VERSION), glGetString(GL_VENDOR));
-
+	InitializeBackend();
 #ifdef _DEBUG
 	EnableDebugging();
 #endif
@@ -229,8 +223,6 @@ void DrawRectangle(rendering_context* Context,
                    color              BorderColor /*= {0.0f, 0.0f, 0.0f, 1.0f}*/
 )
 {
-	OPTICK_EVENT();
-
 	rectangle Rectangle;
 	Rectangle.Position          = vec2(X, Y);
 	Rectangle.Size              = vec2(Width, Height) / 2.0f;
@@ -330,8 +322,6 @@ void DrawText(rendering_context* Context, const char32_t* Text, f32 PixelSize, f
 
 void RenderRectangles(rendering_context* Context)
 {
-	OPTICK_EVENT();
-
 	const i32 RectangleCount = (i32)Context->Rectangles.size();
 
 	if (RectangleCount == 0)
@@ -385,8 +375,6 @@ void RenderRectangles(rendering_context* Context)
 
 void RenderTexts(rendering_context* Context)
 {
-	OPTICK_EVENT();
-
 	const i32 GlyphCount = (i32)Context->GlyphData.size();
 
 	auto VertexTime   = fs::last_write_time(fs::path("shaders/text.vert.glsl"));
@@ -446,8 +434,6 @@ void RenderTexts(rendering_context* Context)
 
 void Flush(rendering_context* Context)
 {
-	OPTICK_EVENT();
-
 	glClearColor(0.2f, 0.4f, 0.5f, 1.0f);
 	glViewport(0, 0, (GLsizei)Context->ViewportWidth, (GLsizei)Context->ViewportHeight);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
