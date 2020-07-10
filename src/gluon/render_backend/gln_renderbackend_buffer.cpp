@@ -132,8 +132,6 @@ buffer_handle CreateImmutableBuffer(int64_t Size, const void* Data)
 
 void DestroyBuffer(buffer_handle Handle)
 {
-	buffer_info Infos = s_BufferInfos[Handle.Idx];
-
 	UnmapBuffer(Handle);
 
 #ifdef _DEBUG

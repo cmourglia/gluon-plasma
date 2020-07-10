@@ -1,16 +1,16 @@
-#include <glfw/glfw3.h>
+#include <GLFW/glfw3.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-#include <eastl/array.h>
-#include <eastl/vector.h>
-#include <eastl/algorithm.h>
-#include <eastl/numeric.h>
-#include <eastl/numeric_limits.h>
-#include <eastl/string.h>
-#include <eastl/unordered_map.h>
+#include <EASTL/array.h>
+#include <EASTL/vector.h>
+#include <EASTL/algorithm.h>
+#include <EASTL/numeric.h>
+#include <EASTL/numeric_limits.h>
+#include <EASTL/string.h>
+#include <EASTL/unordered_map.h>
 
 #include <gluon/core/gln_timer.h>
 

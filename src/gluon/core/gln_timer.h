@@ -1,4 +1,4 @@
-#include <eastl/chrono.h>
+#include <EASTL/chrono.h>
 
 using clock     = eastl::chrono::high_resolution_clock;
 using timepoint = eastl::chrono::high_resolution_clock::time_point;
@@ -12,10 +12,7 @@ public:
 		m_LastTime = m_Start;
 	}
 
-	inline void Restart()
-	{
-		Start();
-	}
+	inline void Restart() { Start(); }
 
 	inline double DeltaTime() const
 	{

@@ -151,6 +151,9 @@ inline constexpr uint32_t GetDataTypeSize(data_type DataType)
 		case DataType_UnsignedInt:
 		case DataType_Float:
 			return 4;
+
+		default:
+			return 0;
 	}
 
 	return 0;

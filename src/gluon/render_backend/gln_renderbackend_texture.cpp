@@ -6,8 +6,8 @@
 
 #include <loguru.hpp>
 
-#include <eastl/unordered_map.h>
-#include <eastl/array.h>
+#include <EASTL/unordered_map.h>
+#include <EASTL/array.h>
 
 #include <assert.h>
 

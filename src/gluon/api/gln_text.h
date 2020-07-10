@@ -2,7 +2,7 @@
 
 #include <gluon/core/gln_defines.h>
 
-#include <eastl/unordered_map.h>
+#include <EASTL/unordered_map.h>
 
 namespace gln
 {
