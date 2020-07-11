@@ -1,171 +1,133 @@
 #include <gluon/render_backend/gln_renderbackend.h>
 
-#include <glad/glad.h>
-#include <EASTL/array.h>
-#include <loguru.hpp>
+#include <gluon/render_backend/gln_renderbackend_p.h>
+#include <gluon/render_backend/backend_opengl/gln_renderbackend_opengl.h>
 
-#include <stdio.h>
+#include <EASTL/vector.h>
 
 namespace gln
 {
-void OpenGLMessageCallback(GLenum        Source,
-                           GLenum        Type,
-                           GLuint        Id,
-                           GLenum        Severity,
-                           GLsizei       Length,
-                           GLchar const* Message,
-                           void const*   UserParam)
+
+struct vertex_layout_impl
 {
-	const auto SourceStr = [Source]() {
-		switch (Source)
-		{
-			case GL_DEBUG_SOURCE_API:
-				return "API";
-			case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
-				return "WINDOW SYSTEM";
-			case GL_DEBUG_SOURCE_SHADER_COMPILER:
-				return "SHADER COMPILER";
-			case GL_DEBUG_SOURCE_THIRD_PARTY:
-				return "THIRD PARTY";
-			case GL_DEBUG_SOURCE_APPLICATION:
-				return "APPLICATION";
-			case GL_DEBUG_SOURCE_OTHER:
-			default:
-				return "OTHER";
-		}
-	}();
+	eastl::vector<data_type> DataTypes;
+	eastl::vector<int>       ElemCounts;
 
-	switch (Type)
+	uint32_t GetOffset(uint32_t Index) const
 	{
-		case GL_DEBUG_TYPE_ERROR:
-			LOG_F(ERROR, "%s (%d): %s", SourceStr, Id, Message);
-			break;
+		uint32_t Offset = 0;
 
-		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
-			LOG_F(WARNING, "%s (%d) UB: %s", SourceStr, Id, Message);
-			break;
+		for (uint32_t i = 0; i < Index; ++i)
+		{
+			Offset += ElemCounts[i] * GetDataTypeSize(DataTypes[i]);
+		}
 
-		default:
-			LOG_F(INFO, "%s (%d): %s", SourceStr, Id, Message);
+		return Offset;
 	}
+
+	uint32_t GetTotalSize() const { return GetOffset((uint32_t)DataTypes.size()); }
+};
+
+vertex_layout::vertex_layout() { m_Impl = new vertex_layout_impl; }
+
+vertex_layout::~vertex_layout()
+{
+	delete m_Impl;
+	m_Impl = nullptr;
 }
+
+vertex_layout& vertex_layout::Begin() { return *this; }
+
+vertex_layout& vertex_layout::Add(data_type DataType, int ElementCount)
+{
+	m_Impl->DataTypes.push_back(DataType);
+	m_Impl->ElemCounts.push_back(ElementCount);
+	return *this;
+}
+
+void vertex_layout::End()
+{ /* no-op for now */
+}
+
+u32 vertex_layout::GetTotalSize() const { return m_Impl->GetTotalSize(); }
+
+u32 vertex_layout::GetOffset(u32 Index) const { return m_Impl->GetOffset(Index); }
+
+u32 vertex_layout::GetEntryCount() const { return (u32)m_Impl->DataTypes.size(); }
+
+vertex_layout::entry vertex_layout::GetEntry(u32 Index) const { return {m_Impl->DataTypes[Index], m_Impl->ElemCounts[Index]}; }
+
+static render_backend_interface* s_Backend = nullptr;
 
 void InitializeBackend()
 {
-	if (!gladLoadGL())
-	{
-		LOG_F(FATAL, "Cannot load OpenGL functions");
-	}
-
-	LOG_F(INFO, "OpenGL:\n\tVersion %s\n\tVendor %s", glGetString(GL_VERSION), glGetString(GL_VENDOR));
+	s_Backend = new gl::render_backend();
+	s_Backend->Initialize();
 }
 
-void EnableDebugging()
+void EnableDebugging() { s_Backend->EnableDebugging(); }
+void DisableDebugging() { s_Backend->DisableDebugging(); }
+
+shader_handle CreateShaderFromSource(const char* ShaderSource, shader_type ShaderType, const char* ShaderName)
 {
-	glEnable(GL_DEBUG_OUTPUT);
-	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-	glDebugMessageCallback(OpenGLMessageCallback, nullptr);
-	glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_FALSE);
-	glDebugMessageControl(GL_DONT_CARE, GL_DEBUG_TYPE_ERROR, GL_DONT_CARE, 0, NULL, GL_TRUE);
+	return s_Backend->CreateShaderFromSource(ShaderSource, ShaderType, ShaderName);
 }
 
-void DisableDebugging()
+shader_handle CreateShaderFromFile(const char* ShaderName, shader_type ShaderType)
 {
-	glDisable(GL_DEBUG_OUTPUT);
-	glDisable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+	return s_Backend->CreateShaderFromFile(ShaderName, ShaderType);
 }
 
-using data_type_array       = eastl::array<GLenum, DataType_Count>;
-using format_array          = eastl::array<GLenum, 4>;
-using internal_format_array = eastl::array<data_type_array, 4>;
-using wrap_mode_array       = eastl::array<GLenum, WrapMode_Count>;
-using min_filter_array      = eastl::array<GLenum, MinFilter_Count>;
-using mag_filter_array      = eastl::array<GLenum, MagFilter_Count>;
+void DestroyShader(shader_handle Shader) { s_Backend->DestroyShader(Shader); }
 
-constexpr auto GenerateDataTypeArray()
+program_handle CreateProgram(shader_handle VertexShader, shader_handle FragmentShader, bool DeleteShaders)
 {
-	data_type_array Result = {GL_BYTE, GL_UNSIGNED_BYTE, GL_SHORT, GL_UNSIGNED_SHORT, GL_INT, GL_UNSIGNED_INT, GL_FLOAT};
-	return Result;
+	return s_Backend->CreateProgram(VertexShader, FragmentShader, DeleteShaders);
 }
 
-constexpr auto GenerateFormatArray()
+program_handle CreateComputeProgram(shader_handle ComputeShader, bool DeleteShader)
 {
-	format_array Result = {GL_RED, GL_RG, GL_RGB, GL_RGBA};
-	return Result;
+	return s_Backend->CreateComputeProgram(ComputeShader, DeleteShader);
 }
 
-constexpr auto GenerateInternalFormatArray()
+void DestroyProgram(program_handle Program) { s_Backend->DestroyProgram(Program); }
+
+vertex_array_handle CreateVertexArray(buffer_handle IndexBuffer) { return s_Backend->CreateVertexArray(IndexBuffer); }
+void                AttachVertexBuffer(vertex_array_handle VertexArray, buffer_handle VertexBuffer, const vertex_layout& VertexLayout)
 {
-	internal_format_array Result = {};
-
-	Result[0] = {GL_R8, GL_R8, GL_R16, GL_R16, GL_R32I, GL_R32UI, GL_R32F};
-	Result[1] = {GL_RG8, GL_RG8, GL_RG16, GL_RG16, GL_RG32I, GL_RG32UI, GL_RG32F};
-	Result[2] = {GL_RGB8, GL_RGB8, GL_RGB16, GL_RGB16, GL_RGB32I, GL_RGB32UI, GL_RGB32F};
-	Result[3] = {GL_RGBA8, GL_RGBA8, GL_RGBA16, GL_RGBA16, GL_RGBA32I, GL_RGBA32UI, GL_RGBA32F};
-
-	return Result;
+	s_Backend->AttachVertexBuffer(VertexArray, VertexBuffer, VertexLayout);
 }
+void DestroyVertexArray(vertex_array_handle VertexArray) { s_Backend->DestroyVertexArray(VertexArray); }
 
-constexpr auto GenerateWrapModeArray()
+buffer_handle CreateBuffer(i64 Size, const void* Data) { return s_Backend->CreateBuffer(Size, Data); }
+buffer_handle CreateImmutableBuffer(i64 Size, const void* Data) { return s_Backend->CreateImmutableBuffer(Size, Data); }
+void          DestroyBuffer(buffer_handle Handle) { s_Backend->DestroyBuffer(Handle); }
+
+void ResizeBuffer(buffer_handle Handle, i64 NewSize, const void* Data) { s_Backend->ResizeBuffer(Handle, NewSize, Data); }
+void ResizeImmutableBuffer(buffer_handle* Handle, i64 NewSize, const void* Data)
 {
-	wrap_mode_array Result = {GL_CLAMP_TO_EDGE, GL_CLAMP_TO_BORDER, GL_MIRRORED_REPEAT, GL_REPEAT, GL_MIRROR_CLAMP_TO_EDGE};
-
-	return Result;
+	s_Backend->ResizeImmutableBuffer(Handle, NewSize, Data);
 }
 
-constexpr auto GenerateMinFilterArray()
+void UpdateBufferData(buffer_handle Handle, const void* Data, i64 Offset, i64 Length)
 {
-	min_filter_array Result =
-	    {GL_NEAREST, GL_LINEAR, GL_NEAREST_MIPMAP_NEAREST, GL_LINEAR_MIPMAP_NEAREST, GL_NEAREST_MIPMAP_LINEAR, GL_LINEAR_MIPMAP_LINEAR};
-	return Result;
+	s_Backend->UpdateBufferData(Handle, Data, Offset, Length);
 }
 
-constexpr auto GenerateMagFilterArray()
+void* MapBuffer(buffer_handle Handle, i64 Offset, i64 Length) { return s_Backend->MapBuffer(Handle, Offset, Length); }
+void  UnmapBuffer(buffer_handle Handle) { return s_Backend->UnmapBuffer(Handle); }
+
+texture_handle CreateTexture(u32 Width, u32 Height, u32 ComponentCount, data_type DataType, bool WithMipmaps, void* Data)
 {
-	mag_filter_array Result = {GL_NEAREST, GL_LINEAR};
-	return Result;
+	return s_Backend->CreateTexture(Width, Height, ComponentCount, DataType, WithMipmaps, Data);
 }
 
-constexpr data_type_array       k_DataTypesToGL       = GenerateDataTypeArray();
-constexpr format_array          k_FormatsToGL         = GenerateFormatArray();
-constexpr internal_format_array k_InternalFormatsToGL = GenerateInternalFormatArray();
-constexpr wrap_mode_array       k_WrapModesToGL       = GenerateWrapModeArray();
-constexpr min_filter_array      k_MinFiltersToGL      = GenerateMinFilterArray();
-constexpr mag_filter_array      k_MagFiltersToGL      = GenerateMagFilterArray();
-
-inline GLenum GetDataType(data_type DataType) { return k_DataTypesToGL[DataType]; }
-
-inline constexpr uint32_t GetDataTypeSize(data_type DataType)
+void SetTextureData(texture_handle Handle, void* Data) { s_Backend->SetTextureData(Handle, Data); }
+void SetTextureWrapping(texture_handle Handle, wrap_mode WrapS, wrap_mode WrapT) { s_Backend->SetTextureWrapping(Handle, WrapS, WrapT); }
+void SetTextureFiltering(texture_handle Handle, min_filter MinFilter, mag_filter MagFilter)
 {
-	switch (DataType)
-	{
-		case DataType_Byte:
-		case DataType_UnsignedByte:
-			return 1;
-
-		case DataType_Short:
-		case DataType_UnsignedShort:
-			return 2;
-
-		case DataType_Int:
-		case DataType_UnsignedInt:
-		case DataType_Float:
-			return 4;
-
-		default:
-			return 0;
-	}
-
-	return 0;
+	s_Backend->SetTextureFiltering(Handle, MinFilter, MagFilter);
 }
+void DestroyTexture(texture_handle Handle) { s_Backend->DestroyTexture(Handle); }
 
-inline GLenum GetFormat(u32 ComponentCount) { return k_FormatsToGL[ComponentCount - 1]; }
-inline GLenum GetInternalFormat(u32 ComponentCount, data_type DataType) { return k_InternalFormatsToGL[ComponentCount - 1][DataType]; }
-inline GLenum GetWrapMode(wrap_mode Mode) { return k_WrapModesToGL[Mode]; }
-inline GLenum GetMinFilter(min_filter Filter) { return k_MinFiltersToGL[Filter]; }
-inline GLenum GetMagFilter(mag_filter Filter) { return k_MagFiltersToGL[Filter]; }
 }
-
-#include "gln_renderbackend_program.cpp"
-#include "gln_renderbackend_buffer.cpp"
-#include "gln_renderbackend_texture.cpp"

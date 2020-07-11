@@ -1,21 +1,33 @@
 #pragma once
 
-#include <gluon/render_backend/gln_renderbackend_defs.h>
-
 #include <gluon/core/gln_defines.h>
 
 #include <EASTL/numeric_limits.h>
 
+#ifdef _WIN32
+#	ifdef GLUON_RENDERBACKEND_MAKELIB
+#		define GLUON_RENDERBACKEND_EXPORT
+#	else
+#		ifdef GLUON_RENDERBACKEND_MAKEDLL
+#			define GLUON_RENDERBACKEND_EXPORT __declspec(dllexport)
+#		else
+#			define GLUON_RENDERBACKEND_EXPORT __declspec(dllimport)
+#		endif
+#	endif
+#else
+#	define GLUON_RENDERBACKEND_EXPORT
+#endif
+
 namespace gln
 {
-static constexpr uint32_t k_InvalidHandle = eastl::numeric_limits<uint32_t>::max();
+static constexpr uint32_t k_InvalidHandle = UINT32_MAX;
 
 #define GLUON_HANDLE(name_t)                                                                                                               \
 	struct name_t                                                                                                                          \
 	{                                                                                                                                      \
-		uint32_t Idx;                                                                                                                      \
+		uint32_t    Idx;                                                                                                                   \
+		inline bool IsValid() const { return Idx != k_InvalidHandle; }                                                                     \
 	};                                                                                                                                     \
-	inline bool IsValid(name_t Handle) { return Handle.Idx != k_InvalidHandle; }                                                           \
 	inline bool operator<(const name_t& Left, const name_t& Right) { return Left.Idx < Right.Idx; }
 
 #define GLUON_INVALID_HANDLE                                                                                                               \
@@ -48,9 +60,6 @@ enum shader_type
 {
 	ShaderType_Vertex = 0,
 	ShaderType_Fragment,
-	ShaderType_Geometry,
-	ShaderType_TesselationControl,
-	ShaderType_TesselationEvaluation,
 	ShaderType_Compute,
 	ShaderType_Count,
 };
@@ -86,12 +95,24 @@ enum mag_filter
 struct vertex_layout_impl;
 struct GLUON_RENDERBACKEND_EXPORT vertex_layout
 {
+	struct entry
+	{
+		data_type DataType;
+		i32       ElementCount;
+	};
+
 	vertex_layout();
 	~vertex_layout();
 
 	vertex_layout& Begin();
-	vertex_layout& Add(data_type DataType, int ElementCount);
+	vertex_layout& Add(data_type DataType, i32 ElementCount);
 	void           End();
+
+	u32 GetTotalSize() const;
+	u32 GetOffset(u32 Index) const;
+
+	u32   GetEntryCount() const;
+	entry GetEntry(u32 Index) const;
 
 	vertex_layout_impl* m_Impl;
 };
@@ -101,11 +122,16 @@ GLUON_RENDERBACKEND_EXPORT void InitializeBackend();
 GLUON_RENDERBACKEND_EXPORT void EnableDebugging();
 GLUON_RENDERBACKEND_EXPORT void DisableDebugging();
 
-GLUON_RENDERBACKEND_EXPORT shader_handle  CreateShader(const char* ShaderSource, shader_type ShaderType, const char* ShaderName = nullptr);
-GLUON_RENDERBACKEND_EXPORT shader_handle  LoadShader(const char* ShaderName, shader_type ShaderType);
+GLUON_RENDERBACKEND_EXPORT shader_handle CreateShaderFromSource(const char* ShaderSource,
+                                                                shader_type ShaderType,
+                                                                const char* ShaderName = nullptr);
+GLUON_RENDERBACKEND_EXPORT shader_handle CreateShaderFromFile(const char* ShaderName, shader_type ShaderType);
+GLUON_RENDERBACKEND_EXPORT void          DestroyShader(shader_handle Shader);
+
 GLUON_RENDERBACKEND_EXPORT program_handle CreateProgram(shader_handle VertexShader,
                                                         shader_handle FragmentShader = GLUON_INVALID_HANDLE,
                                                         bool          DeleteShaders  = false);
+GLUON_RENDERBACKEND_EXPORT program_handle CreateComputeProgram(shader_handle ComputeShader, bool DeleteShader = false);
 
 GLUON_RENDERBACKEND_EXPORT void DestroyProgram(program_handle Program);
 
@@ -114,9 +140,6 @@ GLUON_RENDERBACKEND_EXPORT void                AttachVertexBuffer(vertex_array_h
                                                                   buffer_handle        VertexBuffer,
                                                                   const vertex_layout& VertexLayout);
 GLUON_RENDERBACKEND_EXPORT void                DestroyVertexArray(vertex_array_handle VertexArray);
-
-GLUON_RENDERBACKEND_EXPORT buffer_handle CreateVertexBuffer(u64 Size, const void* Data = nullptr);
-GLUON_RENDERBACKEND_EXPORT buffer_handle CreateIndexBuffer(u64 Size, const void* Data = nullptr);
 
 GLUON_RENDERBACKEND_EXPORT buffer_handle CreateBuffer(i64 Size = -1, const void* Data = nullptr);
 GLUON_RENDERBACKEND_EXPORT buffer_handle CreateImmutableBuffer(i64 Size, const void* Data = nullptr);

@@ -150,8 +150,8 @@ rendering_context* CreateRenderingContext()
 		g_RectVShaderTime = fs::last_write_time(fs::path("shaders/rect.vert.glsl"));
 		g_RectFShaderTime = fs::last_write_time(fs::path("shaders/rect.frag.glsl"));
 
-		auto VertexShaderHandle   = LoadShader("shaders/rect.vert.glsl", ShaderType_Vertex);
-		auto FragmentShaderHandle = LoadShader("shaders/rect.frag.glsl", ShaderType_Fragment);
+		auto VertexShaderHandle   = CreateShaderFromFile("shaders/rect.vert.glsl", ShaderType_Vertex);
+		auto FragmentShaderHandle = CreateShaderFromFile("shaders/rect.frag.glsl", ShaderType_Fragment);
 		auto ProgramHandle        = CreateProgram(VertexShaderHandle, FragmentShaderHandle, true);
 
 		Context->RectProgram = ProgramHandle;
@@ -175,8 +175,8 @@ rendering_context* CreateRenderingContext()
 		g_TextVShaderTime = fs::last_write_time(fs::path("shaders/text.vert.glsl"));
 		g_TextFShaderTime = fs::last_write_time(fs::path("shaders/text.frag.glsl"));
 
-		auto VertexShaderHandle   = LoadShader("shaders/text.vert.glsl", ShaderType_Vertex);
-		auto FragmentShaderHandle = LoadShader("shaders/text.frag.glsl", ShaderType_Fragment);
+		auto VertexShaderHandle   = CreateShaderFromFile("shaders/text.vert.glsl", ShaderType_Vertex);
+		auto FragmentShaderHandle = CreateShaderFromFile("shaders/text.frag.glsl", ShaderType_Fragment);
 		auto ProgramHandle        = CreateProgram(VertexShaderHandle, FragmentShaderHandle, true);
 
 		Context->TextProgram = ProgramHandle;
@@ -337,8 +337,8 @@ void RenderRectangles(rendering_context* Context)
 		g_RectVShaderTime = VertexTime;
 		g_RectFShaderTime = FragmentTime;
 
-		auto VertexShaderHandle   = LoadShader("shaders/rect.vert.glsl", ShaderType_Vertex);
-		auto FragmentShaderHandle = LoadShader("shaders/rect.frag.glsl", ShaderType_Fragment);
+		auto VertexShaderHandle   = CreateShaderFromFile("shaders/rect.vert.glsl", ShaderType_Vertex);
+		auto FragmentShaderHandle = CreateShaderFromFile("shaders/rect.frag.glsl", ShaderType_Fragment);
 		auto ProgramHandle        = CreateProgram(VertexShaderHandle, FragmentShaderHandle, true);
 
 		Context->RectProgram = ProgramHandle;
@@ -385,8 +385,8 @@ void RenderTexts(rendering_context* Context)
 		g_TextVShaderTime = VertexTime;
 		g_TextFShaderTime = FragmentTime;
 
-		auto VertexShaderHandle   = LoadShader("shaders/text.vert.glsl", ShaderType_Vertex);
-		auto FragmentShaderHandle = LoadShader("shaders/text.frag.glsl", ShaderType_Fragment);
+		auto VertexShaderHandle   = CreateShaderFromFile("shaders/text.vert.glsl", ShaderType_Vertex);
+		auto FragmentShaderHandle = CreateShaderFromFile("shaders/text.frag.glsl", ShaderType_Fragment);
 		auto ProgramHandle        = CreateProgram(VertexShaderHandle, FragmentShaderHandle, true);
 
 		Context->TextProgram = ProgramHandle;
