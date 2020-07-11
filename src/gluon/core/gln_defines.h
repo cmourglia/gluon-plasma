@@ -4,6 +4,8 @@
 
 #include <glm/glm.hpp>
 
+#include <gluon/core/gln_macros.h>
+
 using i8  = int8_t;
 using i16 = int16_t;
 using i32 = int32_t;
