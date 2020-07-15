@@ -1,5 +1,3 @@
-#include <GLFW/glfw3.h>
-
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -16,35 +14,22 @@
 
 #include <gluon/api/gln_renderer.h>
 #include <gluon/api/gln_interpolate.h>
+#include <gluon/api/gln_application.h>
 
 #include <loguru.hpp>
 
-static bool gShowStats   = false;
-static bool gEnableVSync = true;
-static i32  gMsaaLevel   = 0;
-
 static uint32_t g_WindowWidth  = 1024;
 static uint32_t g_WindowHeight = 768;
-
-// static bgfx::InstanceDataBuffer gInstanceDataBuffer;
-
-// static bgfx::UniformHandle             ParamsHandle          = GLUON_INVALID_HANDLE;
-// static bgfx::DynamicVertexBufferHandle PositionBuffer        = GLUON_INVALID_HANDLE;
-// static bgfx::DynamicVertexBufferHandle FillColorRadiusBuffer = GLUON_INVALID_HANDLE;
-// static bgfx::DynamicVertexBufferHandle BorderColorSizeBuffer = GLUON_INVALID_HANDLE;
-// static bgfx::IndirectBufferHandle      IndirectBufferHandle  = GLUON_INVALID_HANDLE;
-
-static void ErrorCallback(i32 Error, const char* Description) { LOG_F(ERROR, "GLFW Error %d: %s\n", Error, Description); }
 
 i32   g_ElemCount = 2;
 float g_Delta     = 2.0f / g_ElemCount;
 float g_Radius    = g_Delta / 2.0f;
 
-eastl::vector<gln::color>      g_Colors;
-static gln::rendering_context* g_Context;
-eastl::vector<float>           g_Radii;
+eastl::vector<gluon::color>      g_Colors;
+static gluon::rendering_context* g_Context;
+eastl::vector<float>             g_Radii;
 
-gln::color GetRandomColor() { return gln::color{(float)rand() / RAND_MAX, (float)rand() / RAND_MAX, (float)rand() / RAND_MAX}; }
+gluon::color GetRandomColor() { return gluon::color{(float)rand() / RAND_MAX, (float)rand() / RAND_MAX, (float)rand() / RAND_MAX}; }
 
 void SetColors()
 {
@@ -70,84 +55,6 @@ static f32 CurrentTime = 0.0f;
 
 eastl::u32string WrittenString;
 
-static void KeyCallback(GLFWwindow* Window, i32 Key, i32 Scancode, i32 Action, i32 Mods)
-{
-	if (Key == GLFW_KEY_F1 && Action == GLFW_RELEASE)
-	{
-		gShowStats = !gShowStats;
-	}
-
-	if (Key == GLFW_KEY_F2 && Action == GLFW_RELEASE)
-	{
-		gEnableVSync = !gEnableVSync;
-		glfwSwapInterval(gEnableVSync ? 1 : 0);
-	}
-
-	if (Key == GLFW_KEY_ESCAPE && Action == GLFW_RELEASE)
-	{
-		glfwSetWindowShouldClose(Window, true);
-	}
-
-	if (Key == GLFW_KEY_BACKSPACE && (Action == GLFW_PRESS || Action == GLFW_REPEAT))
-	{
-		if (!WrittenString.empty())
-		{
-			if (Mods &= GLFW_MOD_CONTROL)
-			{
-				auto Position = WrittenString.find_last_of(U" \r\n");
-				if (Position != eastl::u32string::npos)
-				{
-					WrittenString = WrittenString.substr(0, Position);
-				}
-				else
-				{
-					WrittenString.clear();
-				}
-			}
-			else
-			{
-				WrittenString.pop_back();
-			}
-		}
-	}
-
-	if ((Key == GLFW_KEY_ENTER || Key == GLFW_KEY_KP_ENTER) && (Action == GLFW_PRESS || Action == GLFW_REPEAT))
-	{
-		WrittenString += U"\n";
-	}
-}
-
-static void CharCallback(GLFWwindow* Window, u32 Codepoint)
-{
-	if (Codepoint == '+')
-	{
-		g_ElemCount *= 2;
-		g_ElemCount = eastl::min(g_ElemCount, 1024);
-	}
-
-	if (Codepoint == '-')
-	{
-		g_ElemCount /= 2;
-		g_ElemCount = eastl::max(1, g_ElemCount);
-	}
-
-	SetColors();
-	SetRadii();
-
-	g_Delta  = 2.0f / g_ElemCount;
-	g_Radius = g_Delta / 2.0f;
-
-	CurrentTime = 0.0f;
-}
-
-static void ResizeCallback(GLFWwindow* Window, i32 Width, i32 Height)
-{
-	g_WindowWidth  = Width;
-	g_WindowHeight = Height;
-
-	Resize(g_Context, (f32)Width, (f32)Height);
-}
-
 struct brick
 {
 	brick(i32 i, i32 j, i32 MaxCount)
@@ -157,105 +64,69 @@ struct brick
 		const f32 FracW = (f32)g_WindowWidth / (MaxCount + 1);
 		const f32 FracH = (f32)g_WindowHeight / (MaxCount + 1);
 
-		StartPosition = gln::vec2((f32)(i + 1) * FracW, (f32)(j + 1) * FracH - g_WindowHeight);
-		EndPosition   = gln::vec2((f32)(i + 1) * FracW, (f32)(j + 1) * FracH);
+		StartPosition = gluon::vec2((f32)(i + 1) * FracW, (f32)(j + 1) * FracH - g_WindowHeight);
+		EndPosition   = gluon::vec2((f32)(i + 1) * FracW, (f32)(j + 1) * FracH);
 		StartColor    = GetRandomColor();
 		EndColor      = GetRandomColor();
 		EndSize       = 1.0f / MaxCount;
 		StartSize     = EndSize * 0.5f;
+		Radius        = ((f32)rand() / RAND_MAX);
 	}
 
-	f32        Delay;
-	gln::vec2  StartPosition, EndPosition;
-	f32        StartSize, EndSize;
-	gln::color StartColor, EndColor;
+	f32          Delay;
+	gluon::vec2  StartPosition, EndPosition;
+	f32          StartSize, EndSize;
+	gluon::color StartColor, EndColor;
+	f32          Radius;
 
 	void Render(f32 Time, f32 AnimationTime)
 	{
 		Time -= Delay;
-		auto Position = gln::Interpolate(Time, AnimationTime, StartPosition, EndPosition, gln::EaseOutElastic);
-		auto Size     = gln::Interpolate(Time, AnimationTime, StartSize, EndSize, gln::EaseOutBounce);
-		// auto Color    = gln::Interpolate(Time, AnimationTime / 2, StartColor, EndColor, gln::EaseLinear, gln::ColorSpace_HSV);
+		auto Position = gluon::Interpolate(Time, AnimationTime, StartPosition, EndPosition, gluon::EaseOutElastic);
+		auto Size     = gluon::Interpolate(Time, AnimationTime, StartSize, EndSize, gluon::EaseOutBounce);
+		// auto Color    = gluon::Interpolate(Time, AnimationTime / 2, StartColor, EndColor, gluon::EaseLinear, gluon::ColorSpace_HSV);
 		auto Color = EndColor;
 
-		Size = Size * gln::Min((f32)g_WindowWidth, (f32)g_WindowHeight) * 0.5f;
-		gln::DrawRectangle(g_Context, Position.x, Position.y, Size, Size, Color);
+		Size = Size * gluon::Min((f32)g_WindowWidth, (f32)g_WindowHeight) * 0.5f;
+		gluon::DrawRectangle(g_Context, Position.x, Position.y, Size, Size, Color, Radius * Size);
 	}
 };
 
-i32 main()
+struct application : public gluon::application
 {
-	glfwSetErrorCallback(ErrorCallback);
-
-	if (!glfwInit())
+	application()
+	    : gluon::application("Hello")
 	{
-		LOG_F(FATAL, "Cannot initialize GLFW");
-	}
+		g_Context = gluon::CreateRenderingContext();
 
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
-	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_FALSE);
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-	// glfwWindowHint(GLFW_SAMPLES, 4);
+		auto Size = GetSize();
 
-#ifdef _DEBUG
-	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
-#endif
+		g_WindowWidth  = Size.x;
+		g_WindowHeight = Size.y;
 
-	GLFWwindow* Window = glfwCreateWindow(g_WindowWidth, g_WindowHeight, "GLUON RPZ", nullptr, nullptr);
+		gluon::Resize(g_Context, (f32)Size.x, (f32)Size.y);
 
-	if (!Window)
-	{
-		LOG_F(FATAL, "Cannot create GLFW Window");
-	}
+		SetColors();
+		SetRadii();
 
-	glfwMakeContextCurrent(Window);
-	glfwSwapInterval(0);
-
-	glfwSetKeyCallback(Window, KeyCallback);
-	glfwSetCharCallback(Window, CharCallback);
-	glfwSetWindowSizeCallback(Window, ResizeCallback);
-
-	i32 Width, Height;
-	glfwGetWindowSize(Window, &Width, &Height);
-	g_WindowWidth  = Width;
-	g_WindowHeight = Height;
-
-	f32 ScaleX, ScaleY;
-	glfwGetWindowContentScale(Window, &ScaleX, &ScaleY);
-
-	g_Context = gln::CreateRenderingContext();
-	gln::Resize(g_Context, Width, Height);
-
-	SetColors();
-	SetRadii();
-
-	const f32 AnimationTime = 2.0f;
-
-	timer Timer;
-	Timer.Start();
-
-	eastl::vector<brick> Bricks;
-	i32                  MaxCount = 25;
-	for (i32 i = 0; i < MaxCount; ++i)
-	{
-		for (i32 j = 0; j < MaxCount; ++j)
+		for (i32 i = 0; i < MaxCount; ++i)
 		{
-			Bricks.emplace_back(i, j, MaxCount);
+			for (i32 j = 0; j < MaxCount; ++j)
+			{
+				Bricks.emplace_back(i, j, MaxCount);
+			}
 		}
+
+		Timer.Start();
 	}
 
-	eastl::vector<double> Times;
-
-	while (!glfwWindowShouldClose(Window))
+	virtual void OnUpdate() override final
 	{
-		glfwPollEvents();
-
 		const f32 dt = (f32)Timer.DeltaTime();
 
 		const auto ViewMatrix = glm::mat4(1.0f);
 		const auto ProjMatrix = glm::orthoLH_ZO(0.0f, (float)g_WindowWidth, (float)g_WindowHeight, 0.0f, 0.0f, 100.0f);
-		gln::SetCameraInfo(g_Context, glm::value_ptr(ViewMatrix), glm::value_ptr(ProjMatrix));
+		gluon::SetCameraInfo(g_Context, glm::value_ptr(ViewMatrix), glm::value_ptr(ProjMatrix));
 
 		for (auto&& Brick : Bricks)
 		{
@@ -264,10 +135,7 @@ i32 main()
 
 		CurrentTime += dt;
 
-		gln::Flush(g_Context);
-
-		// Debug
-		glfwSwapBuffers(Window);
+		gluon::Flush(g_Context);
 
 		Times.push_back(dt);
 		if (Times.size() == 100)
@@ -277,10 +145,68 @@ i32 main()
 
 			char Buffer[512];
 			snprintf(Buffer, 512, "GLUON RPZ (%lf FPS - %lf ms)", 1.0 / Avg, Avg * 1000);
-			glfwSetWindowTitle(Window, Buffer);
+			SetWindowTitle(Buffer);
 			Times.clear();
 		}
 	}
 
-	return 0;
+	void OnResize(i32 Width, i32 Height) override final
+	{
+		g_WindowWidth  = Width;
+		g_WindowHeight = Height;
+
+		Resize(g_Context, (f32)Width, (f32)Height);
+
+		Bricks.clear();
+		for (i32 i = 0; i < MaxCount; ++i)
+		{
+			for (i32 j = 0; j < MaxCount; ++j)
+			{
+				Bricks.emplace_back(i, j, MaxCount);
+			}
+		}
+	}
+
+	void OnKeyEvent(gluon::input_keys Key, gluon::input_actions Action, gluon::input_mods Mods) override final
+	{
+		if (Action == gluon::Action_Release)
+		{
+			if ((Key == gluon::Key_Equal) && (Mods & gluon::Mod_Shift))
+			{
+				g_ElemCount *= 2;
+				g_ElemCount = eastl::min(g_ElemCount, 1024);
+			}
+
+			if (Key == gluon::Key_Minus)
+			{
+				g_ElemCount /= 2;
+				g_ElemCount = eastl::max(1, g_ElemCount);
+			}
+
+			if (Key == gluon::Key_Escape)
+			{
+				Exit();
+			}
+
+			SetColors();
+			SetRadii();
+
+			g_Delta  = 2.0f / g_ElemCount;
+			g_Radius = g_Delta / 2.0f;
+
+			CurrentTime = 0.0f;
+		}
+	}
+
+	const f32             AnimationTime = 2.0f;
+	gluon::timer          Timer;
+	eastl::vector<double> Times;
+	eastl::vector<brick>  Bricks;
+	i32                   MaxCount = 25;
+};
+
+i32 main()
+{
+	application App;
+	return App.Run();
 }

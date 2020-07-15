@@ -5,7 +5,7 @@
 
 #include <EASTL/vector.h>
 
-namespace gln
+namespace gluon
 {
 
 struct vertex_layout_impl

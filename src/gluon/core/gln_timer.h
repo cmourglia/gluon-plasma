@@ -1,5 +1,7 @@
 #include <EASTL/chrono.h>
 
+namespace gluon
+{
 using clock     = eastl::chrono::high_resolution_clock;
 using timepoint = eastl::chrono::high_resolution_clock::time_point;
 
@@ -36,3 +38,5 @@ private:
 	timepoint         m_Start;
 	mutable timepoint m_LastTime;
 };
+
+}

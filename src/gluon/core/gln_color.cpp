@@ -2,7 +2,7 @@
 
 #include "gln_math.h"
 
-namespace gln
+namespace gluon
 {
 
 color MakeColorFromRGB8(u8 Red, u8 Green, u8 Blue, f32 Alpha)

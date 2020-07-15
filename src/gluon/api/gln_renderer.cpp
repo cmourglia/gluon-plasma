@@ -25,7 +25,7 @@
 
 #include <loguru.hpp>
 
-namespace gln
+namespace gluon
 {
 struct pos_vertex
 {

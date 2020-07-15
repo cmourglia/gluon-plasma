@@ -4,7 +4,7 @@
 
 #include <gluon/core/gln_color.h>
 
-namespace gln
+namespace gluon
 {
 struct rendering_context;
 

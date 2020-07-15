@@ -2,11 +2,12 @@
 
 #include "gln_defines.h"
 
-namespace gln
+namespace gluon
 {
 struct color
 {
-	union {
+	union
+	{
 		struct
 		{
 			f32 R, G, B;

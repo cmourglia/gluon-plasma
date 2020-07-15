@@ -4,7 +4,7 @@
 
 #include <EASTL/unordered_map.h>
 
-namespace gln
+namespace gluon
 {
 
 struct glyph

@@ -4,7 +4,7 @@
 
 #include <gluon/core/gln_defines.h>
 
-namespace gln
+namespace gluon
 {
 
 enum easing_function

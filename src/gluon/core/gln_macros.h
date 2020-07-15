@@ -17,6 +17,22 @@
 #	error "Undefined compiler"
 #endif
 
+#define GLN_PLATFORM_WINDOWS 0
+#define GLN_PLATFORM_LINUX 0
+
+#if defined(_WIN32) || defined(_WIN64)
+#	ifndef NOMINMAX
+#		define NOMINMAX
+#	endif
+#	undef GLN_PLATFORM_WINDOWS
+#	define GLN_PLATFORM_WINDOWS 1
+#elif defined(__linux__)
+#	undef GLN_PLATFORM_LINUX
+#	define GLN_PLATFORM_LINUX 1
+#else
+#	error "Unsupported platform"
+#endif
+
 #include <stdint.h>
 #if UINTPTR_MAX == 0xffffffffffffffff
 #	define GLN_ARCH_64
@@ -75,3 +91,5 @@
 #else
 #	define GLN_ASSERT(Expr)
 #endif
+
+#define GLN_ARRAY_SIZE(x) (sizeof(x) / (sizeof(x[0])))
