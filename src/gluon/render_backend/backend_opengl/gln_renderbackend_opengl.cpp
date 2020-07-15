@@ -8,7 +8,7 @@
 
 #include <stdio.h>
 
-namespace gln
+namespace gluon
 {
 namespace gl
 {
@@ -301,13 +301,71 @@ namespace gl
 		return Handle;
 	}
 
+	void render_backend::SetProgram(program_handle Program)
+	{
+		glUseProgram(Program.Idx);
+		m_CurrentProgram = Program;
+	}
+
 	void render_backend::DestroyProgram(program_handle Program)
 	{
 		GLN_ASSERT(glIsProgram(Program.Idx) && Program.IsValid());
 		glDeleteProgram(Program.Idx);
 	}
 
-	// TODO: Set uniforms
+	void render_backend::SetUniform(const char* UniformName, i32 Value)
+	{
+		const i32 Location = glGetUniformLocation(m_CurrentProgram.Idx, UniformName);
+		glUniform1i(Location, Value);
+	}
+
+	void render_backend::SetUniform(const char* UniformName, u32 Value)
+	{
+		const i32 Location = glGetUniformLocation(m_CurrentProgram.Idx, UniformName);
+		glUniform1ui(Location, Value);
+	}
+
+	void render_backend::SetUniform(const char* UniformName, f32 Value)
+	{
+		const i32 Location = glGetUniformLocation(m_CurrentProgram.Idx, UniformName);
+		glUniform1f(Location, Value);
+	}
+
+	void render_backend::SetUniform(const char* UniformName, const vec2& Value)
+	{
+		const i32 Location = glGetUniformLocation(m_CurrentProgram.Idx, UniformName);
+		glUniform2fv(Location, 1, &Value[0]);
+	}
+
+	void render_backend::SetUniform(const char* UniformName, const vec3& Value)
+	{
+		const i32 Location = glGetUniformLocation(m_CurrentProgram.Idx, UniformName);
+		glUniform3fv(Location, 1, &Value[0]);
+	}
+
+	void render_backend::SetUniform(const char* UniformName, const vec4& Value)
+	{
+		const i32 Location = glGetUniformLocation(m_CurrentProgram.Idx, UniformName);
+		glUniform4fv(Location, 1, &Value[0]);
+	}
+
+	void render_backend::SetUniform(const char* UniformName, const mat2& Value)
+	{
+		const i32 Location = glGetUniformLocation(m_CurrentProgram.Idx, UniformName);
+		glUniformMatrix2fv(Location, 1, GL_FALSE, &Value[0][0]);
+	}
+
+	void render_backend::SetUniform(const char* UniformName, const mat3& Value)
+	{
+		const i32 Location = glGetUniformLocation(m_CurrentProgram.Idx, UniformName);
+		glUniformMatrix3fv(Location, 1, GL_FALSE, &Value[0][0]);
+	}
+
+	void render_backend::SetUniform(const char* UniformName, const mat4& Value)
+	{
+		const i32 Location = glGetUniformLocation(m_CurrentProgram.Idx, UniformName);
+		glUniformMatrix4fv(Location, 1, GL_FALSE, &Value[0][0]);
+	}
 
 	// VAO section
 	vertex_array_handle render_backend::CreateVertexArray(buffer_handle IndexBuffer)

@@ -18,17 +18,22 @@
 #	define GLUON_RENDERBACKEND_EXPORT
 #endif
 
-namespace gln
+namespace gluon
 {
-static constexpr uint32_t k_InvalidHandle = UINT32_MAX;
+static constexpr u32 k_InvalidHandle = UINT32_MAX;
 
 #define GLUON_HANDLE(name_t)                                                                                                               \
 	struct name_t                                                                                                                          \
 	{                                                                                                                                      \
-		uint32_t    Idx;                                                                                                                   \
+		u32         Idx;                                                                                                                   \
 		inline bool IsValid() const { return Idx != k_InvalidHandle; }                                                                     \
 	};                                                                                                                                     \
-	inline bool operator<(const name_t& Left, const name_t& Right) { return Left.Idx < Right.Idx; }
+	inline bool operator<(const name_t& Left, const name_t& Right) { return Left.Idx < Right.Idx; }                                        \
+	inline bool operator<=(const name_t& Left, const name_t& Right) { return Left.Idx <= Right.Idx; }                                      \
+	inline bool operator==(const name_t& Left, const name_t& Right) { return Left.Idx == Right.Idx; }                                      \
+	inline bool operator>=(const name_t& Left, const name_t& Right) { return Left.Idx >= Right.Idx; }                                      \
+	inline bool operator>(const name_t& Left, const name_t& Right) { return Left.Idx > Right.Idx; }                                        \
+	inline bool operator!=(const name_t& Left, const name_t& Right) { return Left.Idx != Right.Idx; }
 
 #define GLUON_INVALID_HANDLE                                                                                                               \
 	{                                                                                                                                      \

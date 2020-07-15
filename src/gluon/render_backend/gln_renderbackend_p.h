@@ -5,11 +5,44 @@
 #include <gluon/render_backend/gln_renderbackend.h>
 
 #include <EASTL/vector.h>
+#include <EASTL/unordered_map.h>
+
+namespace eastl
+{
+template <>
+struct hash<gluon::shader_handle>
+{
+	size_t operator()(gluon::shader_handle Handle) const { return Handle.Idx; }
+};
+
+template <>
+struct hash<gluon::program_handle>
+{
+	size_t operator()(gluon::program_handle Handle) const { return Handle.Idx; }
+};
+
+template <>
+struct hash<gluon::vertex_array_handle>
+{
+	size_t operator()(gluon::vertex_array_handle Handle) const { return Handle.Idx; }
+};
+
+template <>
+struct hash<gluon::buffer_handle>
+{
+	size_t operator()(gluon::buffer_handle Handle) const { return Handle.Idx; }
+};
+
+template <>
+struct hash<gluon::texture_handle>
+{
+	size_t operator()(gluon::texture_handle Handle) const { return Handle.Idx; }
+};
+}
 
 /// This is a private header, it should not be included outside of the gluon renderbackend files.
-namespace gln
+namespace gluon
 {
-
 inline constexpr uint32_t GetDataTypeSize(data_type DataType)
 {
 	switch (DataType)
@@ -49,9 +82,19 @@ struct GLN_NO_VTABLE render_backend_interface
 
 	virtual program_handle CreateProgram(shader_handle VertexShader, shader_handle FragmentShader, bool DeleteShaders) = 0;
 	virtual program_handle CreateComputeProgram(shader_handle ComputeShader, bool DeleteShaders)                       = 0;
+	virtual void           SetProgram(program_handle Program)                                                          = 0;
 	virtual void           DestroyProgram(program_handle Program)                                                      = 0;
 
-	// TODO: Set uniforms
+	// TODO: This uniform handling does not fit DirectX or Vulkan paradigms
+	virtual void SetUniform(const char* UniformName, i32 Value)         = 0;
+	virtual void SetUniform(const char* UniformName, u32 Value)         = 0;
+	virtual void SetUniform(const char* UniformName, f32 Value)         = 0;
+	virtual void SetUniform(const char* UniformName, const vec2& Value) = 0;
+	virtual void SetUniform(const char* UniformName, const vec3& Value) = 0;
+	virtual void SetUniform(const char* UniformName, const vec4& Value) = 0;
+	virtual void SetUniform(const char* UniformName, const mat2& Value) = 0;
+	virtual void SetUniform(const char* UniformName, const mat3& Value) = 0;
+	virtual void SetUniform(const char* UniformName, const mat4& Value) = 0;
 
 	// VAO section
 	virtual vertex_array_handle CreateVertexArray(buffer_handle IndexBuffer)                                                        = 0;
