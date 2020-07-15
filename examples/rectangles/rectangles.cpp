@@ -25,9 +25,8 @@ i32   g_ElemCount = 2;
 float g_Delta     = 2.0f / g_ElemCount;
 float g_Radius    = g_Delta / 2.0f;
 
-eastl::vector<gluon::color>      g_Colors;
-static gluon::rendering_context* g_Context;
-eastl::vector<float>             g_Radii;
+eastl::vector<gluon::color> g_Colors;
+eastl::vector<float>        g_Radii;
 
 gluon::color GetRandomColor() { return gluon::color{(float)rand() / RAND_MAX, (float)rand() / RAND_MAX, (float)rand() / RAND_MAX}; }
 
@@ -88,7 +87,7 @@ struct brick
 		auto Color = EndColor;
 
 		Size = Size * gluon::Min((f32)g_WindowWidth, (f32)g_WindowHeight) * 0.5f;
-		gluon::DrawRectangle(g_Context, Position.x, Position.y, Size, Size, Color, Radius * Size);
+		gluon::DrawRectangle(Position.x, Position.y, Size, Size, Color, Radius * Size);
 	}
 };
 
@@ -97,14 +96,10 @@ struct application : public gluon::application
 	application()
 	    : gluon::application("Hello")
 	{
-		g_Context = gluon::CreateRenderingContext();
-
 		auto Size = GetSize();
 
 		g_WindowWidth  = Size.x;
 		g_WindowHeight = Size.y;
-
-		gluon::Resize(g_Context, (f32)Size.x, (f32)Size.y);
 
 		SetColors();
 		SetRadii();
@@ -124,18 +119,12 @@ struct application : public gluon::application
 	{
 		const f32 dt = (f32)Timer.DeltaTime();
 
-		const auto ViewMatrix = glm::mat4(1.0f);
-		const auto ProjMatrix = glm::orthoLH_ZO(0.0f, (float)g_WindowWidth, (float)g_WindowHeight, 0.0f, 0.0f, 100.0f);
-		gluon::SetCameraInfo(g_Context, glm::value_ptr(ViewMatrix), glm::value_ptr(ProjMatrix));
-
 		for (auto&& Brick : Bricks)
 		{
 			Brick.Render(CurrentTime, AnimationTime);
 		}
 
 		CurrentTime += dt;
-
-		gluon::Flush(g_Context);
 
 		Times.push_back(dt);
 		if (Times.size() == 100)
@@ -154,8 +143,6 @@ struct application : public gluon::application
 	{
 		g_WindowWidth  = Width;
 		g_WindowHeight = Height;
-
-		Resize(g_Context, (f32)Width, (f32)Height);
 
 		Bricks.clear();
 		for (i32 i = 0; i < MaxCount; ++i)

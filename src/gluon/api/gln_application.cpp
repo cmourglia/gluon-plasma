@@ -4,6 +4,7 @@
 
 #include <gluon/core/gln_defines.h>
 #include <gluon/api/gln_renderer.h>
+#include <gluon/api/gln_renderer_p.h>
 
 #include <GLFW/glfw3.h>
 
@@ -27,6 +28,9 @@ static void ErrorCallback(i32 Error, const char* Description) { LOG_F(ERROR, "GL
 static void ResizeCallback(GLFWwindow* Window, i32 Width, i32 Height)
 {
 	application* App = (application*)glfwGetWindowUserPointer(Window);
+
+	gluon::priv::Resize(Width, Height);
+
 	App->OnResize(Width, Height);
 }
 
@@ -83,10 +87,14 @@ application::application(const char* WindowTitle, i32 Width, i32 Height, bool Re
 
 	glfwMakeContextCurrent(m_Impl->Window);
 	glfwSwapInterval(0);
+
+	gluon::priv::CreateRenderingContext();
 }
 
 application::~application()
 {
+	gluon::priv::DestroyRenderingContext();
+
 	glfwSetWindowUserPointer(m_Impl->Window, nullptr);
 	glfwDestroyWindow(m_Impl->Window);
 	glfwTerminate();
@@ -95,7 +103,10 @@ application::~application()
 
 void application::SetWindowTitle(const char* NewTitle) { glfwSetWindowTitle(m_Impl->Window, NewTitle); }
 
-void application::SetSize(i32 Width, i32 Height) { }
+void application::SetSize(i32 Width, i32 Height)
+{
+	// TODO
+}
 
 void* application::GetNativeHandle() const
 {
@@ -133,6 +144,8 @@ i32 application::Run()
 		glfwPollEvents();
 
 		OnUpdate();
+
+		gluon::priv::Flush();
 
 		glfwSwapBuffers(m_Impl->Window);
 	}
