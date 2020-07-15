@@ -2,7 +2,7 @@
 
 #include <gluon/core/gln_math.h>
 
-namespace gln
+namespace gluon
 {
 // https://easings.net/
 

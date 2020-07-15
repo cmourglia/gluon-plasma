@@ -4,7 +4,7 @@
 
 #include <math.h>
 
-namespace gln
+namespace gluon
 {
 constexpr f32 PI   = 3.14159265359f;
 constexpr f32 PI_2 = PI / 2.0f;

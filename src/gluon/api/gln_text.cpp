@@ -8,7 +8,7 @@
 
 #include <stdio.h>
 
-namespace gln
+namespace gluon
 {
 
 font_atlas LoadFontAtlas(const char* FontName)
