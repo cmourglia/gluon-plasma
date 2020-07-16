@@ -182,6 +182,9 @@ namespace priv
 			auto ProgramHandle        = CreateProgram(VertexShaderHandle, FragmentShaderHandle, true);
 
 			g_Context->TextProgram = ProgramHandle;
+
+			g_Context->LastGlyphCount = 0;
+			g_Context->TextInfoSSBO   = CreateImmutableBuffer(0);
 		}
 	}
 
