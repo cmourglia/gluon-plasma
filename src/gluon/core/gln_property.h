@@ -60,7 +60,7 @@ struct property
 		return *this;
 	}
 
-	void Subscribe(const callback& Callback) { Callbacks.push_back(eastl::move(Callback)); }
+	void Subscribe(callback&& Callback) { Callbacks.push_back(eastl::move(Callback)); }
 
 	void Notify()
 	{
