@@ -60,6 +60,8 @@ struct property
 		return *this;
 	}
 
+	operator T() const { return Data; }
+
 	void Subscribe(callback&& Callback) { Callbacks.push_back(eastl::move(Callback)); }
 
 	void Notify()

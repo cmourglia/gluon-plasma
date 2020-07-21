@@ -198,7 +198,7 @@ void window::Traverse()
 
 void rectangle::Traverse()
 {
-	DrawRectangle(x.Data, y.Data, w.Data, h.Data, fillColor.Data, radius.Data, borderWidth.Data, borderColor.Data);
+	DrawRectangle(x, y, w, h, fillColor, radius, borderWidth, borderColor);
 	widget::Traverse();
 }
 }
