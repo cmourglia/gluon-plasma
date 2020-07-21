@@ -27,6 +27,14 @@ color MakeColorFromRGB32(u32 RGB)
 	return MakeColorFromRGB8(R, G, B, 1.0f);
 }
 
+color RandomColor()
+{
+	const u8 R = rand() % 256;
+	const u8 G = rand() % 256;
+	const u8 B = rand() % 256;
+	return MakeColorFromRGB8(R, G, B);
+}
+
 color RgbToHsv(const color& Color)
 {
 	const f32 MinV = Min(Min(Color.R, Color.G), Color.B);
