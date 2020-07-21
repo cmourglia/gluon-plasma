@@ -1,12 +1,8 @@
 project(gluon_core)
 
 add_library(${PROJECT_NAME} STATIC
-	gln_defines.h
-	gln_math.h
-	gln_timer.h
-	gln_color.h
 	gln_color.cpp
-	gln_property.h
+	gln_observable.cpp
 )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC loguru eastl stb)
