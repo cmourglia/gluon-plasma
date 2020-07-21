@@ -6,6 +6,7 @@ add_library(${PROJECT_NAME} STATIC
 	gln_timer.h
 	gln_color.h
 	gln_color.cpp
+	gln_property.h
 )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC loguru eastl stb)
