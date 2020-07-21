@@ -30,37 +30,37 @@
 namespace gluon
 {
 
-static void ResizeCallback(GLFWwindow* Window, i32 Width, i32 Height)
+static void ResizeCallback(GLFWwindow* pWindow, i32 Width, i32 Height)
 {
-	// application* App = (application*)glfwGetWindowUserPointer(Window);
+	window* Window = (window*)glfwGetWindowUserPointer(pWindow);
 
 	gluon::priv::Resize((f32)Width, (f32)Height);
 
-	// App->OnResize(Width, Height);
+	// Window->OnResize(Width, Height);
 }
 
-static void CursorPosCallback(GLFWwindow* Window, f64 X, f64 Y)
+static void CursorPosCallback(GLFWwindow* pWindow, f64 X, f64 Y)
 {
-	// application* App = (application*)glfwGetWindowUserPointer(Window);
-	// App->OnMouseMove((f32)X, (f32)Y);
+	window* Window = (window*)glfwGetWindowUserPointer(pWindow);
+	Window->OnMouseMove((f32)X, (f32)Y);
 }
 
-static void MouseButtonCallback(GLFWwindow* Window, i32 Button, i32 Action, i32 Mods)
+static void MouseButtonCallback(GLFWwindow* pWindow, i32 Button, i32 Action, i32 Mods)
 {
-	// application* App = (application*)glfwGetWindowUserPointer(Window);
-	// App->OnMouseEvent((input_mouse_buttons)Button, (input_actions)Action, (input_mods)Mods);
+	window* Window = (window*)glfwGetWindowUserPointer(pWindow);
+	Window->OnMouseEvent((input_mouse_buttons)Button, (input_actions)Action, (input_mods)Mods);
 }
 
-static void KeyCallback(GLFWwindow* Window, i32 Key, i32 ScanCode, i32 Action, i32 Mods)
+static void KeyCallback(GLFWwindow* pWindow, i32 Key, i32 ScanCode, i32 Action, i32 Mods)
 {
-	// application* App = (application*)glfwGetWindowUserPointer(Window);
-	// App->OnKeyEvent((input_keys)Key, (input_actions)Action, (input_mods)Mods);
+	// window* Window = (window*)glfwGetWindowUserPointer(Window);
+	// Window->OnKeyEvent((input_keys)Key, (input_actions)Action, (input_mods)Mods);
 }
 
-static void CharCallback(GLFWwindow* Window, u32 Codepoint)
+static void CharCallback(GLFWwindow* pWindow, u32 Codepoint)
 {
-	// application* App = (application*)glfwGetWindowUserPointer(Window);
-	// App->OnCharInput(Codepoint);
+	// window* Window = (window*)glfwGetWindowUserPointer(pWindow);
+	// Window->OnCharInput(Codepoint);
 }
 
 void widget_impl::ClearChildren()
@@ -136,6 +136,26 @@ void widget::Traverse()
 	}
 }
 
+bool widget::OnMouseMove(f32 X, f32 Y)
+{
+	bool Accepted = false;
+	for (auto&& Child : m_Widget->Children)
+	{
+		Accepted = Accepted || Child->OnMouseMove(X, Y);
+	}
+	return Accepted;
+}
+
+bool widget::OnMouseEvent(input_mouse_buttons Button, input_actions Action, input_mods Mods)
+{
+	bool Accepted = false;
+	for (auto&& Child : m_Widget->Children)
+	{
+		Accepted = Accepted || Child->OnMouseEvent(Button, Action, Mods);
+	}
+	return Accepted;
+}
+
 window::window(const char* Title)
     : widget(nullptr)
 {
@@ -196,9 +216,65 @@ void window::Traverse()
 	widget::Traverse();
 }
 
+rectangle::rectangle(widget* Parent)
+    : widget(Parent)
+{
+	onEnter.Subscribe([this]() { hovered = true; });
+	onLeave.Subscribe([this]() { hovered = false; });
+	onPress.Subscribe([this]() { pressed = true; });
+	onRelease.Subscribe([this]() { pressed = false; });
+}
+
 void rectangle::Traverse()
 {
 	DrawRectangle(x, y, w, h, fillColor, radius, borderWidth, borderColor);
 	widget::Traverse();
 }
+
+bool rectangle::OnMouseMove(f32 X, f32 Y)
+{
+	bool Accepted = widget::OnMouseMove(X, Y);
+
+	if (!Accepted)
+	{
+		if ((X >= x && X <= (x + w)) && (Y >= y && Y <= (y + h)))
+		{
+			if (!hovered)
+			{
+				onEnter.Fire();
+			}
+		}
+		else if (hovered)
+		{
+			onLeave.Fire();
+			pressed = false;
+		}
+	}
+
+	return Accepted;
+}
+
+bool rectangle::OnMouseEvent(input_mouse_buttons Button, input_actions Action, input_mods Mod)
+{
+	bool Accepted = widget::OnMouseEvent(Button, Action, Mod);
+
+	if (!Accepted)
+	{
+		if (hovered.Data && Button == MouseButton_Left)
+		{
+			if (Action == Action_Press)
+			{
+				onPress.Fire();
+			}
+			else if (Action == Action_Release)
+			{
+				onRelease.Fire();
+				onClick.Fire();
+			}
+		}
+	}
+
+	return Accepted;
+}
+
 }
