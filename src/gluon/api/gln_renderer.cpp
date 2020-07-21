@@ -355,8 +355,8 @@ void DrawRectangle(f32   X,
 )
 {
 	rectangle Rectangle;
-	Rectangle.Position          = vec2(X, Y);
 	Rectangle.Size              = vec2(Width, Height) / 2.0f;
+	Rectangle.Position          = vec2(X, Y) + Rectangle.Size;
 	Rectangle.BorderColorSize   = BorderColor;
 	Rectangle.BorderColorSize.A = BorderWidth;
 	Rectangle.FillColorRadius   = Color;

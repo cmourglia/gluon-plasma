@@ -191,27 +191,39 @@ struct brick
 
 i32 main()
 {
+	srand(42);
+
 	gluon::application App;
 	gluon::window      Window("Hello, gluon");
 
 	f32 y = 10;
 
-	for (i32 i = 0; i < 8; ++i)
-	{
-		f32 x = 10;
-		for (i32 j = 0; j < 10; ++j)
-		{
-			auto Rect       = new gluon::rectangle(&Window);
-			Rect->x         = x;
-			Rect->y         = y;
-			Rect->w         = 50;
-			Rect->h         = 50;
-			Rect->fillColor = gluon::RandomColor();
+	// for (i32 i = 0; i < 8; ++i)
+	// {
+	// 	f32 x = 10;
+	// 	for (i32 j = 0; j < 10; ++j)
+	// 	{
+	// 		auto Rect       = new gluon::rectangle(&Window);
+	// 		Rect->x         = x;
+	// 		Rect->y         = y;
+	// 		Rect->w         = 50;
+	// 		Rect->h         = 50;
+	// 		Rect->fillColor = gluon::RandomColor();
 
-			x += 81;
-		}
-		y += 75.7f;
-	}
+	// 		x += 81;
+	// 	}
+	// 	y += 75.7f;
+	// }
 
+	gluon::rectangle r1(&Window);
+	r1.fillColor = gluon::MakeColorFromRGB8(255, 0, 0);
+
+	gluon::rectangle r2(&Window);
+	r2.x         = 100;
+	r2.fillColor = gluon::MakeColorFromRGB8(0, 255, 0);
+	r2.fillColor = r1.fillColor;
+	r2.fillColor.Subscribe([](const gluon::color& c) { LOG_F(INFO, "Color changed: %d %d %d", c.R, c.G, c.B); });
+
+	r1.fillColor = gluon::RandomColor();
 	return App.Run();
 }

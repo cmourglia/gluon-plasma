@@ -5,6 +5,8 @@
 #include <gluon/core/gln_defines.h>
 #include <gluon/core/gln_color.h>
 
+#include <gluon/core/gln_property.h>
+
 namespace gluon
 {
 /**
@@ -72,13 +74,13 @@ protected:
 	void Traverse() override final;
 
 public:
-	f32   x           = 0.0f;
-	f32   y           = 0.0f;
-	f32   w           = 30.0f;
-	f32   h           = 30.0f;
-	color fillColor   = MakeColorFromRGB32(0xFFFF00);
-	f32   radius      = 0.0f;
-	color borderColor = MakeColorFromRGB32(0);
-	f32   borderWidth = 0.0f;
+	property<f32>   x           = 0.0f;
+	property<f32>   y           = 0.0f;
+	property<f32>   w           = 30.0f;
+	property<f32>   h           = 30.0f;
+	property<color> fillColor   = MakeColorFromRGB32(0xFFFF00);
+	property<f32>   radius      = 0.0f;
+	property<color> borderColor = MakeColorFromRGB32(0);
+	property<f32>   borderWidth = 0.0f;
 };
 }

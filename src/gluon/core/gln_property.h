@@ -1,38 +1,68 @@
 #pragma once
 
-#define USE_STD 0
-
-#if USE_STD
-#include <vector.h>
-#include <functional.h>
-#define lib std
-#else
 #include <EASTL/vector.h>
 #include <EASTL/functional.h>
-#define lib eastl
-#endif
 
-template<typename T>
-struct property 
+namespace gluon
 {
-	using callback = lib::function<void (const T&)>;
-	using callbacks = lib::vector<callback>;
-	
-	T Data;
+
+template <typename T>
+struct property
+{
+	using callback  = eastl::function<void(const T&)>;
+	using callbacks = eastl::vector<callback>;
+
+	T         Data;
 	callbacks Callbacks;
 
-	void operator=(const T& Data) 
+	property() = default;
+	property(const T& Data) { this->Data = Data; }
+	property(const property<T>& Other)
 	{
-		Data = Data;
+		Data      = Other.Data;
+		Callbacks = Other.Callbacks;
+	}
+	// property(property<T>&& Other)
+	// {
+	// 	Data      = eastl::move(Other.Data);
+	// 	Callbacks = eastl::move(Other.Callbacks);
+	// }
+
+	~property() = default;
+
+	property<T>& operator=(const T& Data)
+	{
+		this->Data = Data;
 		Notify();
+
+		return *this;
 	}
 
-	void Subscribe(const callback& Callback)
+	// property<T>& operator=(property<T>&& Other)
+	// {
+	// 	this->Data      = eastl::move(Other.Data);
+	// 	this->Callbacks = eastl::move(Callbacks);
+	// 	Notify();
+
+	// 	return *this;
+	// }
+
+	property<T>& operator=(property<T>& Other)
 	{
-		Callbacks.push_back(Callback);
+		this->Data = Other.Data;
+		Other.Subscribe([this](const T& Data) {
+			this->Data = Data;
+			this->Notify();
+		});
+
+		Notify();
+
+		return *this;
 	}
 
-	void Notify() 
+	void Subscribe(const callback& Callback) { Callbacks.push_back(eastl::move(Callback)); }
+
+	void Notify()
 	{
 		for (auto&& Callback : Callbacks)
 		{
@@ -40,3 +70,5 @@ struct property
 		}
 	}
 };
+
+}

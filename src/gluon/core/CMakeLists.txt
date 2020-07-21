@@ -10,4 +10,5 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/external/g
 
 if(MSVC)
 	target_compile_definitions(${PROJECT_NAME} PUBLIC _CRT_SECURE_NO_WARNINGS NODRAWTEXT)
+	target_compile_options(${PROJECT_NAME} PUBLIC /wd4251)
 endif()
