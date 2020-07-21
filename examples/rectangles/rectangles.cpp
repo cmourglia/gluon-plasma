@@ -1,7 +1,3 @@
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-
 #include <EASTL/array.h>
 #include <EASTL/vector.h>
 #include <EASTL/algorithm.h>
@@ -15,6 +11,7 @@
 #include <gluon/api/gln_renderer.h>
 #include <gluon/api/gln_interpolate.h>
 #include <gluon/api/gln_application.h>
+#include <gluon/api/gln_widgets.h>
 
 #include <loguru.hpp>
 
@@ -91,109 +88,130 @@ struct brick
 	}
 };
 
-struct application : public gluon::application
-{
-	application()
-	    : gluon::application("Hello")
-	{
-		auto Size = GetSize();
+// struct application : public gluon::application
+// {
+// 	application()
+// 	    : gluon::application("Hello")
+// 	{
+// 		auto Size = GetSize();
 
-		g_WindowWidth  = Size.x;
-		g_WindowHeight = Size.y;
+// 		g_WindowWidth  = Size.x;
+// 		g_WindowHeight = Size.y;
 
-		SetColors();
-		SetRadii();
+// 		SetColors();
+// 		SetRadii();
 
-		for (i32 i = 0; i < MaxCount; ++i)
-		{
-			for (i32 j = 0; j < MaxCount; ++j)
-			{
-				Bricks.emplace_back(i, j, MaxCount);
-			}
-		}
+// 		for (i32 i = 0; i < MaxCount; ++i)
+// 		{
+// 			for (i32 j = 0; j < MaxCount; ++j)
+// 			{
+// 				Bricks.emplace_back(i, j, MaxCount);
+// 			}
+// 		}
 
-		Timer.Start();
-	}
+// 		Timer.Start();
+// 	}
 
-	virtual void OnUpdate() override final
-	{
-		const f32 dt = (f32)Timer.DeltaTime();
+// 	virtual void OnUpdate() override final
+// 	{
+// 		const f32 dt = (f32)Timer.DeltaTime();
 
-		for (auto&& Brick : Bricks)
-		{
-			Brick.Render(CurrentTime, AnimationTime);
-		}
+// 		for (auto&& Brick : Bricks)
+// 		{
+// 			Brick.Render(CurrentTime, AnimationTime);
+// 		}
 
-		CurrentTime += dt;
+// 		CurrentTime += dt;
 
-		Times.push_back(dt);
-		if (Times.size() == 100)
-		{
-			const double Sum = eastl::accumulate(Times.begin(), Times.end(), 0.0);
-			const double Avg = Sum * 1e-2;
+// 		Times.push_back(dt);
+// 		if (Times.size() == 100)
+// 		{
+// 			const double Sum = eastl::accumulate(Times.begin(), Times.end(), 0.0);
+// 			const double Avg = Sum * 1e-2;
 
-			char Buffer[512];
-			snprintf(Buffer, 512, "GLUON RPZ (%lf FPS - %lf ms)", 1.0 / Avg, Avg * 1000);
-			SetWindowTitle(Buffer);
-			Times.clear();
-		}
-	}
+// 			char Buffer[512];
+// 			snprintf(Buffer, 512, "GLUON RPZ (%lf FPS - %lf ms)", 1.0 / Avg, Avg * 1000);
+// 			SetWindowTitle(Buffer);
+// 			Times.clear();
+// 		}
+// 	}
 
-	void OnResize(i32 Width, i32 Height) override final
-	{
-		g_WindowWidth  = Width;
-		g_WindowHeight = Height;
+// 	void OnResize(i32 Width, i32 Height) override final
+// 	{
+// 		g_WindowWidth  = Width;
+// 		g_WindowHeight = Height;
 
-		Bricks.clear();
-		for (i32 i = 0; i < MaxCount; ++i)
-		{
-			for (i32 j = 0; j < MaxCount; ++j)
-			{
-				Bricks.emplace_back(i, j, MaxCount);
-			}
-		}
-	}
+// 		Bricks.clear();
+// 		for (i32 i = 0; i < MaxCount; ++i)
+// 		{
+// 			for (i32 j = 0; j < MaxCount; ++j)
+// 			{
+// 				Bricks.emplace_back(i, j, MaxCount);
+// 			}
+// 		}
+// 	}
 
-	void OnKeyEvent(gluon::input_keys Key, gluon::input_actions Action, gluon::input_mods Mods) override final
-	{
-		if (Action == gluon::Action_Release)
-		{
-			if ((Key == gluon::Key_Equal) && (Mods & gluon::Mod_Shift))
-			{
-				g_ElemCount *= 2;
-				g_ElemCount = eastl::min(g_ElemCount, 1024);
-			}
+// 	void OnKeyEvent(gluon::input_keys Key, gluon::input_actions Action, gluon::input_mods Mods) override final
+// 	{
+// 		if (Action == gluon::Action_Release)
+// 		{
+// 			if ((Key == gluon::Key_Equal) && (Mods & gluon::Mod_Shift))
+// 			{
+// 				g_ElemCount *= 2;
+// 				g_ElemCount = eastl::min(g_ElemCount, 1024);
+// 			}
 
-			if (Key == gluon::Key_Minus)
-			{
-				g_ElemCount /= 2;
-				g_ElemCount = eastl::max(1, g_ElemCount);
-			}
+// 			if (Key == gluon::Key_Minus)
+// 			{
+// 				g_ElemCount /= 2;
+// 				g_ElemCount = eastl::max(1, g_ElemCount);
+// 			}
 
-			if (Key == gluon::Key_Escape)
-			{
-				Exit();
-			}
+// 			if (Key == gluon::Key_Escape)
+// 			{
+// 				Exit();
+// 			}
 
-			SetColors();
-			SetRadii();
+// 			SetColors();
+// 			SetRadii();
 
-			g_Delta  = 2.0f / g_ElemCount;
-			g_Radius = g_Delta / 2.0f;
+// 			g_Delta  = 2.0f / g_ElemCount;
+// 			g_Radius = g_Delta / 2.0f;
 
-			CurrentTime = 0.0f;
-		}
-	}
+// 			CurrentTime = 0.0f;
+// 		}
+// 	}
 
-	const f32             AnimationTime = 2.0f;
-	gluon::timer          Timer;
-	eastl::vector<double> Times;
-	eastl::vector<brick>  Bricks;
-	i32                   MaxCount = 25;
-};
+// 	const f32             AnimationTime = 2.0f;
+// 	gluon::timer          Timer;
+// 	eastl::vector<double> Times;
+// 	eastl::vector<brick>  Bricks;
+// 	i32                   MaxCount = 25;
+// };
 
 i32 main()
 {
-	application App;
+	gluon::application App;
+	gluon::window      Window("Hello, gluon");
+
+	f32 y = 10;
+
+	for (i32 i = 0; i < 8; ++i)
+	{
+		f32 x = 10;
+		for (i32 j = 0; j < 10; ++j)
+		{
+			auto Rect       = new gluon::rectangle(&Window);
+			Rect->x         = x;
+			Rect->y         = y;
+			Rect->w         = 50;
+			Rect->h         = 50;
+			Rect->fillColor = gluon::RandomColor();
+
+			x += 81;
+		}
+		y += 75.7f;
+	}
+
 	return App.Run();
 }
