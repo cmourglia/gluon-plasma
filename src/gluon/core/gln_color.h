@@ -25,6 +25,8 @@ color MakeColorFromRGB8(u8 Red, u8 Green, u8 Blue, f32 Alpha = 1.0f);
 color MakeColorFromRGBA32(u32 RGBA);
 color MakeColorFromRGB32(u32 RGB);
 
+color RandomColor();
+
 color RgbToHsv(const color& Color);
 color HsvToRgb(const color& Color);
 
