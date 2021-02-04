@@ -2,7 +2,7 @@
 
 #include <loguru.hpp>
 
-#include <vulkan/spirv.h>
+#include <spirv-headers/spirv.h>
 
 #include <stdlib.h>
 #include <stdio.h>

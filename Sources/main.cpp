@@ -37,7 +37,7 @@ private:
 	void Init()
 	{
 		InitWindow();
-		LoadMesh("Assets/Meshes/Cubes/Cubes.fbx", &Model);
+		LoadMesh(R"(W:\glTF-Sample-Models\2.0\Cube\glTF\Cube.gltf)", &Model);
 		InitVulkan();
 	}
 
@@ -187,7 +187,7 @@ private:
 			CopyRegion.srcSubresource.layerCount = 1;
 			CopyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 			CopyRegion.dstSubresource.layerCount = 1;
-			CopyRegion.extent                    = {Swapchain.Width, Swapchain.Height};
+			CopyRegion.extent                    = {Swapchain.Width, Swapchain.Height, 1};
 
 			vkCmdCopyImage(CommandBuffer,
 			               ColorTarget.Image,
@@ -498,8 +498,8 @@ public:
 		}
 	}
 
-	void KeyPressed(i32 Key, i32 Scancode, i32 Mods) {}
-	void KeyReleased(i32 Key, i32 Scancode, i32 Mods) {}
+	void KeyPressed(i32 Key, i32 Scancode, i32 Mods) { }
+	void KeyReleased(i32 Key, i32 Scancode, i32 Mods) { }
 
 private:
 	bool m_LeftButtonPressed;
